@@ -1,9 +1,11 @@
+import 'category.dart';
+
 class Todo {
   final String id;
   final String title;
   final String? description;
   final bool completed;
-  final String? category;
+  final Category? category;
   final DateTime? dueDate;
   final String? location;
   final int? priority;
@@ -31,7 +33,7 @@ class Todo {
       title: json['title'],
       description: json['description'],
       completed: json['completed'],
-      category: json['category'],
+      category: json['category'] != null ? Category.fromJson(json['category']) : null,
       dueDate: json['dueDate'] != null ? DateTime.parse(json['dueDate']) : null,
       location: json['location'],
       priority: json['priority'],
@@ -47,7 +49,7 @@ class Todo {
       'title': title,
       'description': description,
       'completed': completed,
-      'category': category,
+      'category': category?.toJson(),
       'dueDate': dueDate?.toIso8601String(),
       'location': location,
       'priority': priority,
@@ -62,7 +64,7 @@ class Todo {
     String? title,
     String? description,
     bool? completed,
-    String? category,
+    Category? category,
     DateTime? dueDate,
     String? location,
     int? priority,

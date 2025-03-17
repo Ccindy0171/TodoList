@@ -11,7 +11,7 @@ class TodoLists extends StatelessWidget {
         ListTile(
           contentPadding: EdgeInsets.zero,
           leading: const Icon(Icons.notifications_none, color: Colors.blue),
-          title: const Text('提醒事项'),
+          title: const Text('Reminders'),
           trailing: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -27,7 +27,7 @@ class TodoLists extends StatelessWidget {
               context,
               MaterialPageRoute(
                 builder: (context) => const TaskDetailPage(
-                  title: '提醒事项',
+                  title: 'Reminders',
                   icon: Icons.notifications_none,
                   color: Colors.blue,
                   type: 'list',
@@ -39,7 +39,7 @@ class TodoLists extends StatelessWidget {
         ListTile(
           contentPadding: EdgeInsets.zero,
           leading: const Icon(Icons.calendar_month, color: Colors.red),
-          title: const Text('未来计划'),
+          title: const Text('Future Plans'),
           trailing: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -55,7 +55,7 @@ class TodoLists extends StatelessWidget {
               context,
               MaterialPageRoute(
                 builder: (context) => const TaskDetailPage(
-                  title: '未来计划',
+                  title: 'Future Plans',
                   icon: Icons.calendar_month,
                   color: Colors.red,
                   type: 'list',

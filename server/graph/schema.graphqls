@@ -1,9 +1,22 @@
+type Category {
+  id: ID!
+  name: String!
+  color: String!
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+input CategoryInput {
+  name: String!
+  color: String!
+}
+
 type Todo {
   id: ID!
   title: String!
   description: String
   completed: Boolean!
-  category: String
+  category: Category
   dueDate: Time
   location: String
   priority: Int
@@ -15,7 +28,7 @@ type Todo {
 input TodoInput {
   title: String!
   description: String
-  category: String
+  categoryId: ID
   dueDate: Time
   location: String
   priority: Int
@@ -24,7 +37,7 @@ input TodoInput {
 
 input TodoFilter {
   completed: Boolean
-  category: String
+  categoryId: ID
   startDate: Time
   endDate: Time
   priority: Int
@@ -34,6 +47,8 @@ input TodoFilter {
 type Query {
   todos(filter: TodoFilter): [Todo!]!
   todo(id: ID!): Todo
+  categories: [Category!]!
+  category(id: ID!): Category
 }
 
 type Mutation {
@@ -41,6 +56,9 @@ type Mutation {
   updateTodo(id: ID!, input: TodoInput!): Todo!
   toggleTodo(id: ID!): Todo!
   deleteTodo(id: ID!): Boolean!
+  createCategory(input: CategoryInput!): Category!
+  updateCategory(id: ID!, input: CategoryInput!): Category!
+  deleteCategory(id: ID!): Boolean!
 }
 
 scalar Time 

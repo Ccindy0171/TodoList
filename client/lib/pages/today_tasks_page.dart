@@ -21,10 +21,13 @@ class TodayTasksPage extends StatelessWidget {
         title: const Text('Today'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.more_horiz),
-            onPressed: () {
-              // TODO: Implement more options
-            },
+            icon: const Icon(Icons.add),
+              onPressed: () {
+                showDialog(
+                  context: context,
+                  builder: (context) => const AddTaskDialog(),
+                );
+              },
           ),
         ],
       ),

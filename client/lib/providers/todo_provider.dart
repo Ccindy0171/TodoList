@@ -15,7 +15,7 @@ class TodoProvider with ChangeNotifier {
 
   Future<void> loadTodos({
     bool? completed,
-    String? category,
+    String? categoryId,
     DateTime? startDate,
     DateTime? endDate,
     int? priority,
@@ -28,7 +28,7 @@ class TodoProvider with ChangeNotifier {
     try {
       _todos = await _graphQLService.getTodos(
         completed: completed,
-        category: category,
+        categoryId: categoryId,
         startDate: startDate,
         endDate: endDate,
         priority: priority,
@@ -46,7 +46,7 @@ class TodoProvider with ChangeNotifier {
   Future<void> createTodo({
     required String title,
     String? description,
-    String? category,
+    String? categoryId,
     DateTime? dueDate,
     String? location,
     int? priority,
@@ -56,7 +56,7 @@ class TodoProvider with ChangeNotifier {
       final todo = await _graphQLService.createTodo(
         title: title,
         description: description,
-        category: category,
+        categoryId: categoryId,
         dueDate: dueDate,
         location: location,
         priority: priority,

@@ -31,17 +31,28 @@ class TaskDetailPage extends StatelessWidget {
         ),
         title: Text(title),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.add),
-            onPressed: () {
-              showDialog(
-                context: context,
-                builder: (context) => AddTaskDialog(
-                  category: type == 'list' ? title : null,
-                ),
-              );
-            },
-          ),
+          if (title == 'Today')
+            IconButton(
+              icon: const Icon(Icons.add),
+              onPressed: () {
+                showDialog(
+                  context: context,
+                  builder: (context) => const AddTaskDialog(),
+                );
+              },
+            )
+          else if (title != 'Completed')
+            IconButton(
+              icon: const Icon(Icons.add),
+              onPressed: () {
+                showDialog(
+                  context: context,
+                  builder: (context) => AddTaskDialog(
+                    categoryId: type == 'list' ? title : null,
+                  ),
+                );
+              },
+            ),
         ],
       ),
       body: Consumer<TodoProvider>(
@@ -84,12 +95,17 @@ class TaskDetailPage extends StatelessWidget {
           );
         },
       ),
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton: title != 'Completed' ? FloatingActionButton(
         onPressed: () {
-          // TODO: Implement add task functionality
+          showDialog(
+            context: context,
+            builder: (context) => AddTaskDialog(
+              categoryId: type == 'list' ? title : null,
+            ),
+          );
         },
         child: const Icon(Icons.add),
-      ),
+      ) : null,
     );
   }
 

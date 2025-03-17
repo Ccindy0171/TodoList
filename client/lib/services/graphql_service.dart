@@ -1,5 +1,6 @@
 import 'package:graphql/client.dart';
 import '../models/todo.dart';
+import '../models/category.dart';
 
 class GraphQLService {
   static const String _baseUrl = 'http://localhost:8080/query';
@@ -13,9 +14,73 @@ class GraphQLService {
     );
   }
 
+  Future<List<Category>> getCategories() async {
+    const String query = r'''
+      query GetCategories {
+        categories {
+          id
+          name
+          color
+          createdAt
+          updatedAt
+        }
+      }
+    ''';
+
+    final result = await _client.query(
+      QueryOptions(
+        document: gql(query),
+      ),
+    );
+
+    if (result.hasException) {
+      throw Exception(result.exception.toString());
+    }
+
+    final List<dynamic> categoriesJson = result.data?['categories'] ?? [];
+    return categoriesJson.map((json) => Category.fromJson(json)).toList();
+  }
+
+  Future<Category> createCategory({
+    required String name,
+    required String color,
+  }) async {
+    const String mutation = r'''
+      mutation CreateCategory($input: CategoryInput!) {
+        createCategory(input: $input) {
+          id
+          name
+          color
+          createdAt
+          updatedAt
+        }
+      }
+    ''';
+
+    final variables = {
+      'input': {
+        'name': name,
+        'color': color,
+      }
+    };
+
+    final result = await _client.mutate(
+      MutationOptions(
+        document: gql(mutation),
+        variables: variables,
+      ),
+    );
+
+    if (result.hasException) {
+      throw Exception(result.exception.toString());
+    }
+
+    return Category.fromJson(result.data?['createCategory']);
+  }
+
   Future<List<Todo>> getTodos({
     bool? completed,
-    String? category,
+    String? categoryId,
     DateTime? startDate,
     DateTime? endDate,
     int? priority,
@@ -28,7 +93,13 @@ class GraphQLService {
           title
           description
           completed
-          category
+          category {
+            id
+            name
+            color
+            createdAt
+            updatedAt
+          }
           dueDate
           location
           priority
@@ -42,7 +113,7 @@ class GraphQLService {
     final variables = {
       'filter': {
         if (completed != null) 'completed': completed,
-        if (category != null) 'category': category,
+        if (categoryId != null) 'categoryId': categoryId,
         if (startDate != null) 'startDate': startDate.toIso8601String(),
         if (endDate != null) 'endDate': endDate.toIso8601String(),
         if (priority != null) 'priority': priority,
@@ -68,7 +139,7 @@ class GraphQLService {
   Future<Todo> createTodo({
     required String title,
     String? description,
-    String? category,
+    String? categoryId,
     DateTime? dueDate,
     String? location,
     int? priority,
@@ -81,7 +152,13 @@ class GraphQLService {
           title
           description
           completed
-          category
+          category {
+            id
+            name
+            color
+            createdAt
+            updatedAt
+          }
           dueDate
           location
           priority
@@ -96,7 +173,7 @@ class GraphQLService {
       'input': {
         'title': title,
         if (description != null) 'description': description,
-        if (category != null) 'category': category,
+        if (categoryId != null) 'categoryId': categoryId,
         if (dueDate != null) 'dueDate': dueDate.toIso8601String(),
         if (location != null) 'location': location,
         if (priority != null) 'priority': priority,

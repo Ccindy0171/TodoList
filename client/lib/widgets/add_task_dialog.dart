@@ -1,15 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/todo_provider.dart';
+import '../providers/category_provider.dart';
+import '../models/category.dart' as models;
 import 'package:intl/intl.dart';
 
 class AddTaskDialog extends StatefulWidget {
-  final String? category;
+  final String? categoryId;
   final DateTime? initialDate;
 
   const AddTaskDialog({
     super.key,
-    this.category,
+    this.categoryId,
     this.initialDate,
   });
 
@@ -21,21 +23,39 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
+  final _newCategoryController = TextEditingController();
   DateTime? _selectedDate;
   TimeOfDay? _selectedTime;
-  String? _selectedCategory;
+  String? _selectedCategoryId;
+  bool _isCreatingNewCategory = false;
+  String _selectedColor = '#FF0000';
+
+  final List<String> _predefinedColors = [
+    '#FF0000', // Red
+    '#00FF00', // Green
+    '#0000FF', // Blue
+    '#FFFF00', // Yellow
+    '#FF00FF', // Magenta
+    '#00FFFF', // Cyan
+    '#FFA500', // Orange
+    '#800080', // Purple
+    '#008000', // Dark Green
+    '#000080', // Navy Blue
+  ];
 
   @override
   void initState() {
     super.initState();
     _selectedDate = widget.initialDate ?? DateTime.now();
-    _selectedCategory = widget.category;
+    _selectedCategoryId = widget.categoryId;
+    context.read<CategoryProvider>().loadCategories();
   }
 
   @override
   void dispose() {
     _titleController.dispose();
     _descriptionController.dispose();
+    _newCategoryController.dispose();
     super.dispose();
   }
 
@@ -65,6 +85,19 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
     }
   }
 
+  Future<void> _createNewCategory() async {
+    if (_newCategoryController.text.isNotEmpty) {
+      await context.read<CategoryProvider>().createCategory(
+        name: _newCategoryController.text,
+        color: _selectedColor,
+      );
+      setState(() {
+        _isCreatingNewCategory = false;
+        _newCategoryController.clear();
+      });
+    }
+  }
+
   void _submitForm() {
     if (_formKey.currentState!.validate()) {
       DateTime? dueDate;
@@ -81,7 +114,7 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
       context.read<TodoProvider>().createTodo(
         title: _titleController.text,
         description: _descriptionController.text.isEmpty ? null : _descriptionController.text,
-        category: _selectedCategory,
+        categoryId: _selectedCategoryId,
         dueDate: dueDate,
       );
 
@@ -122,6 +155,138 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
                 maxLines: 3,
               ),
               const SizedBox(height: 16),
+              Consumer<CategoryProvider>(
+                builder: (context, categoryProvider, child) {
+                  if (categoryProvider.isLoading) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+
+                  if (categoryProvider.error != null) {
+                    return Text('Error: ${categoryProvider.error}');
+                  }
+
+                  return Column(
+                    children: [
+                      if (!_isCreatingNewCategory) ...[
+                        DropdownButtonFormField<String>(
+                          value: _selectedCategoryId,
+                          decoration: const InputDecoration(
+                            labelText: 'Category (optional)',
+                            border: OutlineInputBorder(),
+                          ),
+                          items: [
+                            const DropdownMenuItem(
+                              value: null,
+                              child: Text('None'),
+                            ),
+                            ...categoryProvider.categories.map((category) {
+                              return DropdownMenuItem(
+                                value: category.id,
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      width: 16,
+                                      height: 16,
+                                      decoration: BoxDecoration(
+                                        color: Color(
+                                          int.parse(
+                                            category.color.replaceAll('#', '0xFF'),
+                                          ),
+                                        ),
+                                        shape: BoxShape.circle,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(category.name),
+                                  ],
+                                ),
+                              );
+                            }).toList(),
+                          ],
+                          onChanged: (value) {
+                            setState(() {
+                              _selectedCategoryId = value;
+                            });
+                          },
+                        ),
+                        TextButton(
+                          onPressed: () {
+                            setState(() {
+                              _isCreatingNewCategory = true;
+                            });
+                          },
+                          child: const Text('Create New Category'),
+                        ),
+                      ] else ...[
+                        TextFormField(
+                          controller: _newCategoryController,
+                          decoration: const InputDecoration(
+                            labelText: 'New Category Name',
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        DropdownButtonFormField<String>(
+                          value: _selectedColor,
+                          decoration: const InputDecoration(
+                            labelText: 'Category Color',
+                            border: OutlineInputBorder(),
+                          ),
+                          items: _predefinedColors.map((color) {
+                            return DropdownMenuItem(
+                              value: color,
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 16,
+                                    height: 16,
+                                    decoration: BoxDecoration(
+                                      color: Color(
+                                        int.parse(color.replaceAll('#', '0xFF')),
+                                      ),
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(color),
+                                ],
+                              ),
+                            );
+                          }).toList(),
+                          onChanged: (value) {
+                            if (value != null) {
+                              setState(() {
+                                _selectedColor = value;
+                              });
+                            }
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            TextButton(
+                              onPressed: () {
+                                setState(() {
+                                  _isCreatingNewCategory = false;
+                                  _newCategoryController.clear();
+                                });
+                              },
+                              child: const Text('Cancel'),
+                            ),
+                            const SizedBox(width: 8),
+                            ElevatedButton(
+                              onPressed: _createNewCategory,
+                              child: const Text('Create'),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ],
+                  );
+                },
+              ),
+              const SizedBox(height: 16),
               ListTile(
                 title: const Text('Due Date'),
                 subtitle: Text(
@@ -142,16 +307,6 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
                 trailing: const Icon(Icons.access_time),
                 onTap: () => _selectTime(context),
               ),
-              if (_selectedCategory == null) ...[
-                const SizedBox(height: 16),
-                TextFormField(
-                  decoration: const InputDecoration(
-                    labelText: 'Category (optional)',
-                    border: OutlineInputBorder(),
-                  ),
-                  onChanged: (value) => _selectedCategory = value,
-                ),
-              ],
             ],
           ),
         ),

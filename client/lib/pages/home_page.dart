@@ -19,7 +19,7 @@ class HomePage extends StatelessWidget {
               const StatsGrid(),
               const SizedBox(height: 24),
               const Text(
-                '我的列表',
+                'My Lists',
                 style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
