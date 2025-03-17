@@ -1,0 +1,46 @@
+type Todo {
+  id: ID!
+  title: String!
+  description: String
+  completed: Boolean!
+  category: String
+  dueDate: Time
+  location: String
+  priority: Int
+  tags: [String!]
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+input TodoInput {
+  title: String!
+  description: String
+  category: String
+  dueDate: Time
+  location: String
+  priority: Int
+  tags: [String!]
+}
+
+input TodoFilter {
+  completed: Boolean
+  category: String
+  startDate: Time
+  endDate: Time
+  priority: Int
+  tags: [String!]
+}
+
+type Query {
+  todos(filter: TodoFilter): [Todo!]!
+  todo(id: ID!): Todo
+}
+
+type Mutation {
+  createTodo(input: TodoInput!): Todo!
+  updateTodo(id: ID!, input: TodoInput!): Todo!
+  toggleTodo(id: ID!): Todo!
+  deleteTodo(id: ID!): Boolean!
+}
+
+scalar Time 
