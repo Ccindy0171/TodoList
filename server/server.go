@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"server/graph"
+	"server/graph/database"
 
 	"github.com/99designs/gqlgen/graphql/handler"
 	"github.com/99designs/gqlgen/graphql/handler/extension"
@@ -21,6 +22,7 @@ func main() {
 	if port == "" {
 		port = defaultPort
 	}
+	database.Connect()
 
 	srv := handler.New(graph.NewExecutableSchema(graph.Config{Resolvers: &graph.Resolver{}}))
 

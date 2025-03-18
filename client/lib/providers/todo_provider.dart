@@ -9,6 +9,10 @@ class TodoProvider with ChangeNotifier {
   bool _isLoading = false;
   String? _error;
 
+  TodoProvider() {
+    loadTodos();
+  }
+
   List<Todo> get todos => _todos;
   bool get isLoading => _isLoading;
   String? get error => _error;

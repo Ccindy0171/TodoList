@@ -1,10 +1,17 @@
 import 'package:graphql/client.dart';
 import '../models/todo.dart';
 import '../models/category.dart';
+import 'package:intl/intl.dart';
 
 class GraphQLService {
-  static const String _baseUrl = 'http://localhost:8080/query';
+  static const String _baseUrl = 'http://10.0.2.2:8080/query'; // for android emulator
+  // static const String _baseUrl = 'http://localhost:8080/query'; // for web
   late GraphQLClient _client;
+
+  String _formatDateTime(DateTime dateTime) {
+    final utc = dateTime.toUtc();
+    return utc.toIso8601String(); // This will format as "2024-03-18T15:04:05.000Z"
+  }
 
   GraphQLService() {
     final HttpLink httpLink = HttpLink(_baseUrl);
@@ -104,8 +111,6 @@ class GraphQLService {
           location
           priority
           tags
-          createdAt
-          updatedAt
         }
       }
     ''';
@@ -114,8 +119,8 @@ class GraphQLService {
       'filter': {
         if (completed != null) 'completed': completed,
         if (categoryId != null) 'categoryId': categoryId,
-        if (startDate != null) 'startDate': startDate.toIso8601String(),
-        if (endDate != null) 'endDate': endDate.toIso8601String(),
+        if (startDate != null) 'startDate': _formatDateTime(startDate),
+        if (endDate != null) 'endDate': _formatDateTime(endDate),
         if (priority != null) 'priority': priority,
         if (tags != null) 'tags': tags,
       }
@@ -163,8 +168,6 @@ class GraphQLService {
           location
           priority
           tags
-          createdAt
-          updatedAt
         }
       }
     ''';
@@ -174,7 +177,7 @@ class GraphQLService {
         'title': title,
         if (description != null) 'description': description,
         if (categoryId != null) 'categoryId': categoryId,
-        if (dueDate != null) 'dueDate': dueDate.toIso8601String(),
+        if (dueDate != null) 'dueDate': _formatDateTime(dueDate),
         if (location != null) 'location': location,
         if (priority != null) 'priority': priority,
         if (tags != null) 'tags': tags,
@@ -203,21 +206,28 @@ class GraphQLService {
           title
           description
           completed
-          category
+          category {
+            id
+            name
+            color
+            createdAt
+            updatedAt
+          }
           dueDate
           location
           priority
           tags
-          createdAt
-          updatedAt
         }
       }
     ''';
 
+    // Add 'todo:' prefix if it's not already there
+    final formattedId = id.startsWith('todo:') ? id : 'todo:$id';
+
     final result = await _client.mutate(
       MutationOptions(
         document: gql(mutation),
-        variables: {'id': id},
+        variables: {'id': formattedId},
       ),
     );
 
@@ -235,10 +245,13 @@ class GraphQLService {
       }
     ''';
 
+    // Add 'todo:' prefix if it's not already there
+    final formattedId = id.startsWith('todo:') ? id : 'todo:$id';
+
     final result = await _client.mutate(
       MutationOptions(
         document: gql(mutation),
-        variables: {'id': id},
+        variables: {'id': formattedId},
       ),
     );
 

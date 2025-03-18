@@ -10,8 +10,6 @@ class Todo {
   final String? location;
   final int? priority;
   final List<String>? tags;
-  final DateTime createdAt;
-  final DateTime updatedAt;
 
   Todo({
     required this.id,
@@ -23,13 +21,17 @@ class Todo {
     this.location,
     this.priority,
     this.tags,
-    required this.createdAt,
-    required this.updatedAt,
   });
 
   factory Todo.fromJson(Map<String, dynamic> json) {
+    String id = json['id'];
+    // Remove 'todo:' prefix if it exists
+    if (id.startsWith('todo:')) {
+      id = id.substring(5);
+    }
+    
     return Todo(
-      id: json['id'],
+      id: id,
       title: json['title'],
       description: json['description'],
       completed: json['completed'],
@@ -38,8 +40,6 @@ class Todo {
       location: json['location'],
       priority: json['priority'],
       tags: json['tags']?.cast<String>(),
-      createdAt: DateTime.parse(json['createdAt']),
-      updatedAt: DateTime.parse(json['updatedAt']),
     );
   }
 
@@ -50,12 +50,10 @@ class Todo {
       'description': description,
       'completed': completed,
       'category': category?.toJson(),
-      'dueDate': dueDate?.toIso8601String(),
+      'dueDate': dueDate?.toUtc().toIso8601String(),
       'location': location,
       'priority': priority,
       'tags': tags,
-      'createdAt': createdAt.toIso8601String(),
-      'updatedAt': updatedAt.toIso8601String(),
     };
   }
 
@@ -69,8 +67,6 @@ class Todo {
     String? location,
     int? priority,
     List<String>? tags,
-    DateTime? createdAt,
-    DateTime? updatedAt,
   }) {
     return Todo(
       id: id ?? this.id,
@@ -82,8 +78,6 @@ class Todo {
       location: location ?? this.location,
       priority: priority ?? this.priority,
       tags: tags ?? this.tags,
-      createdAt: createdAt ?? this.createdAt,
-      updatedAt: updatedAt ?? this.updatedAt,
     );
   }
 } 

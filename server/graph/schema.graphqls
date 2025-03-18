@@ -16,13 +16,25 @@ type Todo {
   title: String!
   description: String
   completed: Boolean!
-  category: Category
+  categoryId: ID
   dueDate: Time
   location: String
   priority: Int
   tags: [String!]
   createdAt: Time!
   updatedAt: Time!
+}
+
+type TodoOutput {
+  id: ID!
+  title: String!
+  description: String
+  completed: Boolean!
+  category: Category
+  dueDate: Time
+  location: String
+  priority: Int
+  tags: [String!]
 }
 
 input TodoInput {
@@ -45,16 +57,16 @@ input TodoFilter {
 }
 
 type Query {
-  todos(filter: TodoFilter): [Todo!]!
-  todo(id: ID!): Todo
+  todos(filter: TodoFilter): [TodoOutput!]!
+  todo(id: ID!): TodoOutput
   categories: [Category!]!
   category(id: ID!): Category
 }
 
 type Mutation {
-  createTodo(input: TodoInput!): Todo!
-  updateTodo(id: ID!, input: TodoInput!): Todo!
-  toggleTodo(id: ID!): Todo!
+  createTodo(input: TodoInput!): TodoOutput!
+  updateTodo(id: ID!, input: TodoInput!): TodoOutput!
+  toggleTodo(id: ID!): TodoOutput!
   deleteTodo(id: ID!): Boolean!
   createCategory(input: CategoryInput!): Category!
   updateCategory(id: ID!, input: CategoryInput!): Category!

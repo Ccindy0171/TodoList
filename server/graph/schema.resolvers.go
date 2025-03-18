@@ -8,36 +8,435 @@ import (
 	"context"
 	"fmt"
 	"server/graph/model"
+	"server/graph/database"
+	"time"
+	"github.com/google/uuid"
+	"strings"
+	"github.com/surrealdb/surrealdb.go"
 )
 
 // CreateTodo is the resolver for the createTodo field.
-func (r *mutationResolver) CreateTodo(ctx context.Context, input model.TodoInput) (*model.Todo, error) {
-	panic(fmt.Errorf("not implemented: CreateTodo - createTodo"))
+func (r *mutationResolver) CreateTodo(ctx context.Context, input model.TodoInput) (*model.TodoOutput, error) {
+	id := uuid.New().String()
+	now := time.Now()
+	
+	todo := &model.Todo{
+		ID:          id,
+		Title:       input.Title,
+		Description: input.Description,
+		Completed:   false,
+		CategoryID:  input.CategoryID,
+		DueDate:     input.DueDate,
+		Location:    input.Location,
+		Priority:    input.Priority,
+		Tags:        input.Tags,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+
+	_, err := database.DB.Create("todo", todo)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create todo: %v", err)
+	}
+
+	// If there's a category, fetch it
+	var category *model.Category
+	if input.CategoryID != nil {
+		result, err := database.DB.Query("SELECT * FROM category WHERE id = $id", map[string]interface{}{
+			"id": *input.CategoryID,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch category: %v", err)
+		}
+		
+		categories, err := surrealdb.SmartUnmarshal[[]*model.Category](result, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to unmarshal category: %v", err)
+		}
+		if len(categories) > 0 {
+			category = categories[0]
+		}
+	}	
+
+	return &model.TodoOutput{
+		ID:          todo.ID,
+		Title:       todo.Title,
+		Description: todo.Description,
+		Completed:   todo.Completed,
+		Category:    category,
+		DueDate:     todo.DueDate,
+		Location:    todo.Location,
+		Priority:    todo.Priority,
+		Tags:        todo.Tags,
+	}, nil
 }
 
 // UpdateTodo is the resolver for the updateTodo field.
-func (r *mutationResolver) UpdateTodo(ctx context.Context, id string, input model.TodoInput) (*model.Todo, error) {
-	panic(fmt.Errorf("not implemented: UpdateTodo - updateTodo"))
+func (r *mutationResolver) UpdateTodo(ctx context.Context, id string, input model.TodoInput) (*model.TodoOutput, error) {
+	result, err := database.DB.Query("SELECT * FROM todo WHERE id = $id", map[string]interface{}{
+		"id": id,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch todo: %v", err)
+	}
+	
+	todos, err := surrealdb.SmartUnmarshal[[]*model.Todo](result, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal todo: %v", err)
+	}
+
+	if len(todos) == 0 {
+		return nil, fmt.Errorf("todo not found")
+	}
+
+	todo := todos[0]
+	todo.Title = input.Title
+	todo.Description = input.Description
+	todo.CategoryID = input.CategoryID
+	todo.DueDate = input.DueDate
+	todo.Location = input.Location
+	todo.Priority = input.Priority
+	todo.Tags = input.Tags
+	todo.UpdatedAt = time.Now()
+
+	if _, err := database.DB.Update("todo:"+id, todo); err != nil {
+		return nil, fmt.Errorf("failed to update todo: %v", err)
+	}
+
+	// If there's a category, fetch it
+	var category *model.Category
+	if input.CategoryID != nil {
+		catResult, err := database.DB.Query("SELECT * FROM category WHERE id = $id", map[string]interface{}{
+			"id": *input.CategoryID,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch category: %v", err)
+		}
+		
+		categories, err := surrealdb.SmartUnmarshal[[]*model.Category](catResult, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to unmarshal category: %v", err)
+		}
+		if len(categories) > 0 {
+			category = categories[0]
+		}
+	}
+
+	return &model.TodoOutput{
+		ID:          todo.ID,
+		Title:       todo.Title,
+		Description: todo.Description,
+		Completed:   todo.Completed,
+		Category:    category,
+		DueDate:     todo.DueDate,
+		Location:    todo.Location,
+		Priority:    todo.Priority,
+		Tags:        todo.Tags,
+	}, nil
 }
 
 // ToggleTodo is the resolver for the toggleTodo field.
-func (r *mutationResolver) ToggleTodo(ctx context.Context, id string) (*model.Todo, error) {
-	panic(fmt.Errorf("not implemented: ToggleTodo - toggleTodo"))
+func (r *mutationResolver) ToggleTodo(ctx context.Context, id string) (*model.TodoOutput, error) {
+	fmt.Println(id)
+	result, err := database.DB.Query(
+		`SELECT * FROM $todo_id;`,
+		map[string]interface{}{
+			"todo_id": id,
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+	todos, err := surrealdb.SmartUnmarshal[[]model.Todo](result, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(todos) == 0 {
+		return nil, fmt.Errorf("todo not found")
+	}
+
+	completed := !todos[0].Completed
+
+	update := map[string]interface{}{
+		"completed": completed,
+		"updatedAt": time.Now(),
+	}
+
+	if _, err := database.DB.Update(id, update); err != nil {
+		return nil, fmt.Errorf("failed to toggle todo: %v", err)
+	}
+
+	// If there's a category, fetch it
+	var category *model.Category
+	if todos[0].CategoryID != nil && *todos[0].CategoryID != "" {
+		catResult, err := database.DB.Query("SELECT * FROM category WHERE id = $id", map[string]interface{}{
+			"id": *todos[0].CategoryID,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch category: %v", err)
+		}
+		categories, err := surrealdb.SmartUnmarshal[[]*model.Category](catResult, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to unmarshal category: %v", err)
+		}
+		if len(categories) > 0 {
+			category = categories[0]
+		}
+	}
+
+	return &model.TodoOutput{
+		ID:          id,
+		Title:       todos[0].Title,
+		Description: todos[0].Description,
+		Completed:   completed,
+		Category:    category,
+		DueDate:     todos[0].DueDate,
+		Location:    todos[0].Location,
+		Priority:    todos[0].Priority,
+		Tags:        todos[0].Tags,
+	}, nil
 }
 
 // DeleteTodo is the resolver for the deleteTodo field.
 func (r *mutationResolver) DeleteTodo(ctx context.Context, id string) (bool, error) {
-	panic(fmt.Errorf("not implemented: DeleteTodo - deleteTodo"))
+	_, err := database.DB.Delete("todo:" + id)
+	if err != nil {
+		return false, fmt.Errorf("failed to delete todo: %v", err)
+	}
+	return true, nil
+}
+
+// CreateCategory is the resolver for the createCategory field.
+func (r *mutationResolver) CreateCategory(ctx context.Context, input model.CategoryInput) (*model.Category, error) {
+	id := uuid.New().String()
+	now := time.Now()
+	
+	category := &model.Category{
+		ID:        id,
+		Name:      input.Name,
+		Color:     input.Color,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+
+	_, err := database.DB.Create("category", category)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create category: %v", err)
+	}
+
+	return category, nil
+}
+
+// UpdateCategory is the resolver for the updateCategory field.
+func (r *mutationResolver) UpdateCategory(ctx context.Context, id string, input model.CategoryInput) (*model.Category, error) {
+	result, err := database.DB.Query("SELECT * FROM category WHERE id = $id", map[string]interface{}{
+		"id": id,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch category: %v", err)
+	}
+
+	categories, err := surrealdb.SmartUnmarshal[[]*model.Category](result, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal category: %v", err)
+	}
+
+	if len(categories) == 0 {
+		return nil, fmt.Errorf("category not found")
+	}
+
+	category := categories[0]
+	category.Name = input.Name
+	category.Color = input.Color
+	category.UpdatedAt = time.Now()
+
+	if _, err := database.DB.Update(id, category); err != nil {
+		return nil, fmt.Errorf("failed to update category: %v", err)
+	}
+
+	return category, nil
+}
+
+// DeleteCategory is the resolver for the deleteCategory field.
+func (r *mutationResolver) DeleteCategory(ctx context.Context, id string) (bool, error) {
+	_, err := database.DB.Delete(id)
+	if err != nil {
+		return false, fmt.Errorf("failed to delete category: %v", err)
+	}
+	return true, nil
 }
 
 // Todos is the resolver for the todos field.
-func (r *queryResolver) Todos(ctx context.Context, filter *model.TodoFilter) ([]*model.Todo, error) {
-	panic(fmt.Errorf("not implemented: Todos - todos"))
+func (r *queryResolver) Todos(ctx context.Context, filter *model.TodoFilter) ([]*model.TodoOutput, error) {
+	query := "SELECT * FROM todo"
+	
+	// Build filter conditions
+	conditions := []string{}
+	if filter != nil {
+		if filter.Completed != nil {
+			conditions = append(conditions, fmt.Sprintf("completed = %v", *filter.Completed))
+		}
+		if filter.CategoryID != nil {
+			conditions = append(conditions, fmt.Sprintf("categoryId = '%s'", *filter.CategoryID))
+		}
+		if filter.StartDate != nil {
+			conditions = append(conditions, fmt.Sprintf("dueDate >= '%s'", filter.StartDate.Format(time.RFC3339)))
+		}
+		if filter.EndDate != nil {
+			conditions = append(conditions, fmt.Sprintf("dueDate <= '%s'", filter.EndDate.Format(time.RFC3339)))
+		}
+		if filter.Priority != nil {
+			conditions = append(conditions, fmt.Sprintf("priority = %d", *filter.Priority))
+		}
+		if filter.Tags != nil && len(filter.Tags) > 0 {
+			tagConditions := []string{}
+			for _, tag := range filter.Tags {
+				tagConditions = append(tagConditions, fmt.Sprintf("'%s' IN tags", tag))
+			}
+			conditions = append(conditions, fmt.Sprintf("(%s)", strings.Join(tagConditions, " OR ")))
+		}
+	}
+
+	if len(conditions) > 0 {
+		query += " WHERE " + strings.Join(conditions, " AND ")
+	}
+
+	result, err := database.DB.Query(query, map[string]interface{}{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch todos: %v", err)
+	}
+
+	todos, err := surrealdb.SmartUnmarshal[[]*model.Todo](result, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal todos: %v", err)
+	}
+
+	// Convert todos to todo outputs and fetch categories
+	outputs := make([]*model.TodoOutput, len(todos))
+	for i, todo := range todos {
+		output := &model.TodoOutput{
+			ID:          todo.ID,
+			Title:       todo.Title,
+			Description: todo.Description,
+			Completed:   todo.Completed,
+			DueDate:     todo.DueDate,
+			Location:    todo.Location,
+			Priority:    todo.Priority,
+			Tags:        todo.Tags,
+		}
+
+		if todo.CategoryID != nil && *todo.CategoryID != "" {
+			catResult, err := database.DB.Query("SELECT * FROM category WHERE id = $id", map[string]interface{}{
+				"id": *todo.CategoryID,
+			})
+			if err != nil {
+				return nil, fmt.Errorf("failed to fetch category: %v", err)
+			}
+			
+			categories, err := surrealdb.SmartUnmarshal[[]*model.Category](catResult, nil)
+			if err != nil {
+				return nil, fmt.Errorf("failed to unmarshal category: %v", err)
+			}
+			
+			if len(categories) > 0 {
+				output.Category = categories[0]
+			}
+		}
+
+		outputs[i] = output
+	}
+
+	return outputs, nil
 }
 
 // Todo is the resolver for the todo field.
-func (r *queryResolver) Todo(ctx context.Context, id string) (*model.Todo, error) {
-	panic(fmt.Errorf("not implemented: Todo - todo"))
+func (r *queryResolver) Todo(ctx context.Context, id string) (*model.TodoOutput, error) {
+	result, err := database.DB.Query("SELECT * FROM todo WHERE id = $id", map[string]interface{}{
+		"id": id,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch todo: %v", err)
+	}
+
+	todos, err := surrealdb.SmartUnmarshal[[]*model.Todo](result, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal todo: %v", err)
+	}
+
+	if len(todos) == 0 {
+		return nil, nil
+	}
+
+	todo := todos[0]
+	output := &model.TodoOutput{
+		ID:          todo.ID,
+		Title:       todo.Title,
+		Description: todo.Description,
+		Completed:   todo.Completed,
+		DueDate:     todo.DueDate,
+		Location:    todo.Location,
+		Priority:    todo.Priority,
+		Tags:        todo.Tags,
+	}
+
+	if todo.CategoryID != nil && *todo.CategoryID != "" {
+		catResult, err := database.DB.Query("SELECT * FROM category WHERE id = $id", map[string]interface{}{
+			"id": *todo.CategoryID,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch category: %v", err)
+		}
+		
+		categories, err := surrealdb.SmartUnmarshal[[]*model.Category](catResult, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to unmarshal category: %v", err)
+		}
+		
+		if len(categories) > 0 {
+			output.Category = categories[0]
+		}
+	}
+
+	return output, nil
+}
+
+// Categories is the resolver for the categories field.
+func (r *queryResolver) Categories(ctx context.Context) ([]*model.Category, error) {
+	result, err := database.DB.Query("SELECT * FROM category", map[string]interface{}{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch categories: %v", err)
+	}
+
+	fmt.Println(result)
+
+	categories, err := surrealdb.SmartUnmarshal[[]*model.Category](result, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal categories: %v", err)
+	}
+
+	return categories, nil
+}
+
+// Category is the resolver for the category field.
+func (r *queryResolver) Category(ctx context.Context, id string) (*model.Category, error) {
+	result, err := database.DB.Query("SELECT * FROM category WHERE id = $id", map[string]interface{}{
+		"id": id,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch category: %v", err)
+	}
+
+	categories, err := surrealdb.SmartUnmarshal[[]*model.Category](result, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal category: %v", err)
+	}
+
+	if len(categories) == 0 {
+		return nil, nil
+	}
+
+	return categories[0], nil
 }
 
 // Mutation returns MutationResolver implementation.

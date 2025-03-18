@@ -68,7 +68,9 @@ class TaskDetailPage extends StatelessWidget {
               filteredTodos = todoProvider.todos;
             }
           } else if (type == 'list') {
-            filteredTodos = todoProvider.todos.where((todo) => todo.category == title).toList();
+            filteredTodos = todoProvider.todos.where((todo) => 
+              todo.category?.name == title
+            ).toList();
           }
 
           if (todoProvider.isLoading) {

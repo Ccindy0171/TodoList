@@ -10,23 +10,23 @@ class HomePage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.grey[100],
-      body: SafeArea(
+      body: const SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(16.0),
+          padding: EdgeInsets.all(16.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const StatsGrid(),
-              const SizedBox(height: 24),
-              const Text(
+              StatsGrid(),
+              SizedBox(height: 24),
+              Text(
                 'My Lists',
                 style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              const SizedBox(height: 16),
-              const TodoLists(),
+              SizedBox(height: 16),
+              TodoLists(),
             ],
           ),
         ),
