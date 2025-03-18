@@ -60,17 +60,25 @@ class TaskDetailPage extends StatelessWidget {
           List<Todo> filteredTodos = [];
           
           if (type == 'stat') {
-            if (title == 'Planned') {
+            if (title == 'Today') {
+              filteredTodos = todoProvider.getTodayTodos();
+            } else if (title == 'Planned') {
               filteredTodos = todoProvider.getUpcomingTodos();
             } else if (title == 'Completed') {
-              filteredTodos = todoProvider.todos.where((todo) => todo.completed).toList();
+              filteredTodos = todoProvider.getCompletedTodayTodos();
             } else if (title == 'All') {
-              filteredTodos = todoProvider.todos;
+              filteredTodos = todoProvider.getAllTodos();
             }
           } else if (type == 'list') {
-            filteredTodos = todoProvider.todos.where((todo) => 
-              todo.category?.name == title
-            ).toList();
+            if (title == 'Reminders') {
+              filteredTodos = todoProvider.getReminders();
+            } else if (title == 'Future Plans') {
+              filteredTodos = todoProvider.getFuturePlans();
+            } else {
+              filteredTodos = todoProvider.todos.where((todo) => 
+                todo.category?.name == title
+              ).toList();
+            }
           }
 
           if (todoProvider.isLoading) {

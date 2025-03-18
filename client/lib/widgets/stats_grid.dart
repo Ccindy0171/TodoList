@@ -13,7 +13,8 @@ class StatsGrid extends StatelessWidget {
       builder: (context, todoProvider, child) {
         final todayTodos = todoProvider.getTodayTodos();
         final upcomingTodos = todoProvider.getUpcomingTodos();
-        final completedTodos = todoProvider.todos.where((todo) => todo.completed).toList();
+        final completedTodos = todoProvider.getCompletedTodayTodos();
+        final allTodos = todoProvider.getAllTodos();
 
         return GridView.count(
           shrinkWrap: true,
@@ -36,7 +37,7 @@ class StatsGrid extends StatelessWidget {
             ),
             StatCard(
               title: 'All',
-              count: todoProvider.todos.length.toString(),
+              count: allTodos.length.toString(),
               icon: Icons.folder,
               color: Colors.black87,
             ),

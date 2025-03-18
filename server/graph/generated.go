@@ -97,6 +97,7 @@ type ComplexityRoot struct {
 		Priority    func(childComplexity int) int
 		Tags        func(childComplexity int) int
 		Title       func(childComplexity int) int
+		UpdatedAt   func(childComplexity int) int
 	}
 }
 
@@ -436,6 +437,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.TodoOutput.Title(childComplexity), true
+
+	case "TodoOutput.updatedAt":
+		if e.complexity.TodoOutput.UpdatedAt == nil {
+			break
+		}
+
+		return e.complexity.TodoOutput.UpdatedAt(childComplexity), true
 
 	}
 	return 0, false
@@ -1230,6 +1238,8 @@ func (ec *executionContext) fieldContext_Mutation_createTodo(ctx context.Context
 				return ec.fieldContext_TodoOutput_priority(ctx, field)
 			case "tags":
 				return ec.fieldContext_TodoOutput_tags(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_TodoOutput_updatedAt(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type TodoOutput", field.Name)
 		},
@@ -1305,6 +1315,8 @@ func (ec *executionContext) fieldContext_Mutation_updateTodo(ctx context.Context
 				return ec.fieldContext_TodoOutput_priority(ctx, field)
 			case "tags":
 				return ec.fieldContext_TodoOutput_tags(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_TodoOutput_updatedAt(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type TodoOutput", field.Name)
 		},
@@ -1380,6 +1392,8 @@ func (ec *executionContext) fieldContext_Mutation_toggleTodo(ctx context.Context
 				return ec.fieldContext_TodoOutput_priority(ctx, field)
 			case "tags":
 				return ec.fieldContext_TodoOutput_tags(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_TodoOutput_updatedAt(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type TodoOutput", field.Name)
 		},
@@ -1699,6 +1713,8 @@ func (ec *executionContext) fieldContext_Query_todos(ctx context.Context, field 
 				return ec.fieldContext_TodoOutput_priority(ctx, field)
 			case "tags":
 				return ec.fieldContext_TodoOutput_tags(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_TodoOutput_updatedAt(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type TodoOutput", field.Name)
 		},
@@ -1771,6 +1787,8 @@ func (ec *executionContext) fieldContext_Query_todo(ctx context.Context, field g
 				return ec.fieldContext_TodoOutput_priority(ctx, field)
 			case "tags":
 				return ec.fieldContext_TodoOutput_tags(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_TodoOutput_updatedAt(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type TodoOutput", field.Name)
 		},
@@ -2891,6 +2909,50 @@ func (ec *executionContext) fieldContext_TodoOutput_tags(_ context.Context, fiel
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TodoOutput_updatedAt(ctx context.Context, field graphql.CollectedField, obj *model.TodoOutput) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_TodoOutput_updatedAt(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.UpdatedAt, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(time.Time)
+	fc.Result = res
+	return ec.marshalNTime2timeᚐTime(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_TodoOutput_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TodoOutput",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Time does not have child fields")
 		},
 	}
 	return fc, nil
@@ -5411,6 +5473,11 @@ func (ec *executionContext) _TodoOutput(ctx context.Context, sel ast.SelectionSe
 			out.Values[i] = ec._TodoOutput_priority(ctx, field, obj)
 		case "tags":
 			out.Values[i] = ec._TodoOutput_tags(ctx, field, obj)
+		case "updatedAt":
+			out.Values[i] = ec._TodoOutput_updatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}

@@ -30,7 +30,7 @@ class TodoProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      _todos = await _graphQLService.getTodos(
+      final loadedTodos = await _graphQLService.getTodos(
         completed: completed,
         categoryId: categoryId,
         startDate: startDate,
@@ -38,9 +38,19 @@ class TodoProvider with ChangeNotifier {
         priority: priority,
         tags: tags,
       );
-      _todos.sort((a, b) => a.dueDate?.compareTo(b.dueDate ?? DateTime.now()) ?? 0);
+      
+      _todos = loadedTodos;
+      _todos.sort((a, b) {
+        if (a.dueDate == null && b.dueDate == null) return 0;
+        if (a.dueDate == null) return 1;
+        if (b.dueDate == null) return -1;
+        return a.dueDate!.compareTo(b.dueDate!);
+      });
+      
+      _error = null;
     } catch (e) {
       _error = e.toString();
+      _todos = [];
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -66,8 +76,16 @@ class TodoProvider with ChangeNotifier {
         priority: priority,
         tags: tags,
       );
+      
       _todos.add(todo);
-      _todos.sort((a, b) => a.dueDate?.compareTo(b.dueDate ?? DateTime.now()) ?? 0);
+      _todos.sort((a, b) {
+        if (a.dueDate == null && b.dueDate == null) return 0;
+        if (a.dueDate == null) return 1;
+        if (b.dueDate == null) return -1;
+        return a.dueDate!.compareTo(b.dueDate!);
+      });
+      
+      _error = null;
       notifyListeners();
     } catch (e) {
       _error = e.toString();
@@ -108,7 +126,7 @@ class TodoProvider with ChangeNotifier {
     final endOfDay = startOfDay.add(const Duration(days: 1));
     
     return _todos.where((todo) {
-      if (todo.dueDate == null) return false;
+      if (todo.dueDate == null || todo.completed) return false;
       return todo.dueDate!.isAfter(startOfDay) && 
              todo.dueDate!.isBefore(endOfDay);
     }).toList();
@@ -117,11 +135,45 @@ class TodoProvider with ChangeNotifier {
   List<Todo> getUpcomingTodos() {
     final now = DateTime.now();
     final startOfDay = DateTime(now.year, now.month, now.day);
+    final endOfDay = startOfDay.add(const Duration(days: 1));
     
     return _todos.where((todo) {
-      if (todo.dueDate == null) return false;
-      return todo.dueDate!.isAfter(startOfDay);
+      if (todo.dueDate == null || todo.completed) return false;
+      return todo.dueDate!.isAfter(endOfDay);
     }).toList();
+  }
+
+  List<Todo> getAllTodos() {
+    return _todos.where((todo) => !todo.completed).toList();
+  }
+
+  List<Todo> getCompletedTodayTodos() {
+    final now = DateTime.now();
+    final startOfDay = DateTime(now.year, now.month, now.day);
+    final endOfDay = startOfDay.add(const Duration(days: 1));
+    
+    return _todos.where((todo) {
+      if (!todo.completed) return false;
+      return todo.updatedAt.isAfter(startOfDay) && 
+             todo.updatedAt.isBefore(endOfDay);
+    }).toList();
+  }
+
+  List<Todo> getReminders() {
+    return _todos.where((todo) => 
+      !todo.completed &&
+      todo.dueDate != null && 
+      (todo.dueDate!.hour != 0 || todo.dueDate!.minute != 0)
+    ).toList();
+  }
+
+  List<Todo> getFuturePlans() {
+    return _todos.where((todo) => 
+      !todo.completed &&
+      todo.dueDate != null && 
+      todo.dueDate!.hour == 0 && 
+      todo.dueDate!.minute == 0
+    ).toList();
   }
 
   Future<void> syncWithCloud() async {

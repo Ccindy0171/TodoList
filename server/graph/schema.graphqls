@@ -35,6 +35,7 @@ type TodoOutput {
   location: String
   priority: Int
   tags: [String!]
+  updatedAt: Time!
 }
 
 input TodoInput {

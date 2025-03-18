@@ -111,6 +111,7 @@ class GraphQLService {
           location
           priority
           tags
+          updatedAt
         }
       }
     ''';
@@ -168,6 +169,7 @@ class GraphQLService {
           location
           priority
           tags
+          updatedAt
         }
       }
     ''';
@@ -217,6 +219,7 @@ class GraphQLService {
           location
           priority
           tags
+          updatedAt
         }
       }
     ''';

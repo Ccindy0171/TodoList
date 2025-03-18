@@ -68,4 +68,5 @@ type TodoOutput struct {
 	Location    *string    `json:"location,omitempty"`
 	Priority    *int32     `json:"priority,omitempty"`
 	Tags        []string   `json:"tags,omitempty"`
+	UpdatedAt   time.Time  `json:"updatedAt"`
 }

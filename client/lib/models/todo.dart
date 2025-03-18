@@ -10,6 +10,8 @@ class Todo {
   final String? location;
   final int? priority;
   final List<String>? tags;
+  final DateTime updatedAt;
+  final DateTime? createdAt;
 
   Todo({
     required this.id,
@@ -21,25 +23,23 @@ class Todo {
     this.location,
     this.priority,
     this.tags,
+    required this.updatedAt,
+    this.createdAt,
   });
 
   factory Todo.fromJson(Map<String, dynamic> json) {
-    String id = json['id'];
-    // Remove 'todo:' prefix if it exists
-    if (id.startsWith('todo:')) {
-      id = id.substring(5);
-    }
-    
     return Todo(
-      id: id,
-      title: json['title'],
-      description: json['description'],
-      completed: json['completed'],
-      category: json['category'] != null ? Category.fromJson(json['category']) : null,
-      dueDate: json['dueDate'] != null ? DateTime.parse(json['dueDate']) : null,
-      location: json['location'],
-      priority: json['priority'],
-      tags: json['tags']?.cast<String>(),
+      id: json['id'] as String,
+      title: json['title'] as String,
+      description: json['description'] as String?,
+      completed: json['completed'] as bool,
+      category: json['category'] != null ? Category.fromJson(json['category'] as Map<String, dynamic>) : null,
+      dueDate: json['dueDate'] != null ? DateTime.parse(json['dueDate'] as String) : null,
+      location: json['location'] as String?,
+      priority: json['priority'] as int?,
+      tags: (json['tags'] as List<dynamic>?)?.cast<String>(),
+      updatedAt: DateTime.parse(json['updatedAt'] as String),
+      createdAt: json['createdAt'] != null ? DateTime.parse(json['createdAt'] as String) : null,
     );
   }
 
@@ -54,6 +54,8 @@ class Todo {
       'location': location,
       'priority': priority,
       'tags': tags,
+      'updatedAt': updatedAt.toUtc().toIso8601String(),
+      if (createdAt != null) 'createdAt': createdAt!.toUtc().toIso8601String(),
     };
   }
 
@@ -67,6 +69,8 @@ class Todo {
     String? location,
     int? priority,
     List<String>? tags,
+    DateTime? updatedAt,
+    DateTime? createdAt,
   }) {
     return Todo(
       id: id ?? this.id,
@@ -78,6 +82,8 @@ class Todo {
       location: location ?? this.location,
       priority: priority ?? this.priority,
       tags: tags ?? this.tags,
+      updatedAt: updatedAt ?? this.updatedAt,
+      createdAt: createdAt ?? this.createdAt,
     );
   }
 } 
