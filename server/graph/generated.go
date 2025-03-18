@@ -2293,11 +2293,14 @@ func (ec *executionContext) _Todo_dueDate(ctx context.Context, field graphql.Col
 		return graphql.Null
 	}
 	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
 		return graphql.Null
 	}
-	res := resTmp.(*time.Time)
+	res := resTmp.(time.Time)
 	fc.Result = res
-	return ec.marshalOTime2ᚖtimeᚐTime(ctx, field.Selections, res)
+	return ec.marshalNTime2timeᚐTime(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Todo_dueDate(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -2771,11 +2774,14 @@ func (ec *executionContext) _TodoOutput_dueDate(ctx context.Context, field graph
 		return graphql.Null
 	}
 	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
 		return graphql.Null
 	}
-	res := resTmp.(*time.Time)
+	res := resTmp.(time.Time)
 	fc.Result = res
-	return ec.marshalOTime2ᚖtimeᚐTime(ctx, field.Selections, res)
+	return ec.marshalNTime2timeᚐTime(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_TodoOutput_dueDate(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -5042,7 +5048,7 @@ func (ec *executionContext) unmarshalInputTodoInput(ctx context.Context, obj any
 			it.CategoryID = data
 		case "dueDate":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("dueDate"))
-			data, err := ec.unmarshalOTime2ᚖtimeᚐTime(ctx, v)
+			data, err := ec.unmarshalNTime2timeᚐTime(ctx, v)
 			if err != nil {
 				return it, err
 			}
@@ -5396,6 +5402,9 @@ func (ec *executionContext) _Todo(ctx context.Context, sel ast.SelectionSet, obj
 			out.Values[i] = ec._Todo_categoryId(ctx, field, obj)
 		case "dueDate":
 			out.Values[i] = ec._Todo_dueDate(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "location":
 			out.Values[i] = ec._Todo_location(ctx, field, obj)
 		case "priority":
@@ -5467,6 +5476,9 @@ func (ec *executionContext) _TodoOutput(ctx context.Context, sel ast.SelectionSe
 			out.Values[i] = ec._TodoOutput_category(ctx, field, obj)
 		case "dueDate":
 			out.Values[i] = ec._TodoOutput_dueDate(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "location":
 			out.Values[i] = ec._TodoOutput_location(ctx, field, obj)
 		case "priority":

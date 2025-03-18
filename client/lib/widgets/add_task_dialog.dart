@@ -47,6 +47,7 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
   void initState() {
     super.initState();
     _selectedDate = widget.initialDate ?? DateTime.now();
+    _selectedTime = const TimeOfDay(hour: 23, minute: 59);
     _selectedCategoryId = widget.categoryId;
     context.read<CategoryProvider>().loadCategories();
   }
@@ -100,16 +101,20 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
 
   void _submitForm() {
     if (_formKey.currentState!.validate()) {
-      DateTime? dueDate;
-      if (_selectedDate != null && _selectedTime != null) {
-        dueDate = DateTime(
-          _selectedDate!.year,
-          _selectedDate!.month,
-          _selectedDate!.day,
-          _selectedTime!.hour,
-          _selectedTime!.minute,
+      if (_selectedDate == null || _selectedTime == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please select a due date and time')),
         );
+        return;
       }
+
+      DateTime dueDate = DateTime(
+        _selectedDate!.year,
+        _selectedDate!.month,
+        _selectedDate!.day,
+        _selectedTime!.hour,
+        _selectedTime!.minute,
+      );
 
       context.read<TodoProvider>().createTodo(
         title: _titleController.text,
@@ -287,26 +292,37 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
                 },
               ),
               const SizedBox(height: 16),
-              ListTile(
-                title: const Text('Due Date'),
-                subtitle: Text(
-                  _selectedDate != null
-                      ? DateFormat('MMM dd, yyyy').format(_selectedDate!)
-                      : 'Not set',
-                ),
-                trailing: const Icon(Icons.calendar_today),
-                onTap: () => _selectDate(context),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextButton.icon(
+                      onPressed: () => _selectDate(context),
+                      icon: const Icon(Icons.calendar_today),
+                      label: Text(
+                        _selectedDate != null
+                            ? DateFormat('yyyy-MM-dd').format(_selectedDate!)
+                            : 'Select Date',
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: TextButton.icon(
+                      onPressed: () => _selectTime(context),
+                      icon: const Icon(Icons.access_time),
+                      label: Text(
+                        _selectedTime != null
+                            ? _selectedTime!.format(context)
+                            : 'Select Time',
+                      ),
+                    ),
+                  ),
+                ],
               ),
-              ListTile(
-                title: const Text('Due Time'),
-                subtitle: Text(
-                  _selectedTime != null
-                      ? _selectedTime!.format(context)
-                      : 'Not set',
+              if (_selectedDate == null || _selectedTime == null)
+                const Text(
+                  'Due date is required',
+                  style: TextStyle(color: Colors.red),
                 ),
-                trailing: const Icon(Icons.access_time),
-                onTap: () => _selectTime(context),
-              ),
             ],
           ),
         ),
