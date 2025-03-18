@@ -140,26 +140,34 @@ class TaskDetailPage extends StatelessWidget {
           todo.title,
           style: TextStyle(
             decoration: todo.completed ? TextDecoration.lineThrough : null,
-            color: todo.completed ? Colors.grey : null,
+            // color: todo.completed ? Colors.grey : null,
           ),
         ),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (todo.description != null)
+            if (todo.description != null && todo.description!.isNotEmpty)
               Text(
                 todo.description!,
                 style: TextStyle(
                   color: Colors.grey[600],
-                  decoration: todo.completed ? TextDecoration.lineThrough : null,
+                  // decoration: todo.completed ? TextDecoration.lineThrough : null,
                 ),
               ),
-            if (todo.dueDate != null)
+            if (title == 'Completed')
+              Text(
+                'Completed at ${todo.updatedAt.hour.toString().padLeft(2, '0')}:${todo.updatedAt.minute.toString().padLeft(2, '0')}',
+                style: TextStyle(
+                  color: Colors.grey[600],
+                  fontStyle: FontStyle.italic,
+                ),
+              )
+            else if (todo.dueDate != null)
               Text(
                 '${todo.dueDate!.year}-${todo.dueDate!.month.toString().padLeft(2, '0')}-${todo.dueDate!.day.toString().padLeft(2, '0')} ${todo.dueDate!.hour.toString().padLeft(2, '0')}:${todo.dueDate!.minute.toString().padLeft(2, '0')}',
                 style: TextStyle(
                   color: Colors.grey[600],
-                  decoration: todo.completed ? TextDecoration.lineThrough : null,
+                  // decoration: todo.completed ? TextDecoration.lineThrough : null,
                 ),
               ),
           ],

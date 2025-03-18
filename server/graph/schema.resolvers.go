@@ -159,14 +159,10 @@ func (r *mutationResolver) ToggleTodo(ctx context.Context, id string) (*model.To
 		return nil, fmt.Errorf("todo not found")
 	}
 
-	completed := !todos[0].Completed
+	todos[0].Completed = !todos[0].Completed
+	todos[0].UpdatedAt = time.Now()
 
-	update := map[string]interface{}{
-		"completed": completed,
-		"updatedAt": time.Now(),
-	}
-
-	if _, err := database.DB.Update(id, update); err != nil {
+	if _, err := database.DB.Update(id, &todos[0]); err != nil {
 		return nil, fmt.Errorf("failed to toggle todo: %v", err)
 	}
 
@@ -192,7 +188,7 @@ func (r *mutationResolver) ToggleTodo(ctx context.Context, id string) (*model.To
 		ID:          id,
 		Title:       todos[0].Title,
 		Description: todos[0].Description,
-		Completed:   completed,
+		Completed:   todos[0].Completed,
 		Category:    category,
 		DueDate:     todos[0].DueDate,
 		Location:    todos[0].Location,

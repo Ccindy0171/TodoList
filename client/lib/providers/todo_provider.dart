@@ -39,6 +39,8 @@ class TodoProvider with ChangeNotifier {
         tags: tags,
       );
       
+      // log the loaded todos
+      print(loadedTodos);
       _todos = loadedTodos;
       _todos.sort((a, b) {
         if (a.dueDate == null && b.dueDate == null) return 0;
@@ -144,7 +146,25 @@ class TodoProvider with ChangeNotifier {
   }
 
   List<Todo> getAllTodos() {
-    return _todos.where((todo) => !todo.completed).toList();
+    final now = DateTime.now();
+    final startOfDay = DateTime(now.year, now.month, now.day);
+    
+    return _todos.where((todo) {
+      if (todo.dueDate == null) return !todo.completed;
+      if (todo.dueDate!.isAfter(startOfDay) || 
+          todo.dueDate!.year == startOfDay.year && 
+          todo.dueDate!.month == startOfDay.month && 
+          todo.dueDate!.day == startOfDay.day) {
+        return true;
+      }
+      return !todo.completed;
+    }).toList()
+    ..sort((a, b) {
+      if (a.dueDate == null && b.dueDate == null) return 0;
+      if (a.dueDate == null) return 1;
+      if (b.dueDate == null) return -1;
+      return a.dueDate!.compareTo(b.dueDate!);
+    });
   }
 
   List<Todo> getCompletedTodayTodos() {
