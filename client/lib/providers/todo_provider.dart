@@ -142,9 +142,28 @@ class TodoProvider with ChangeNotifier {
       _error = null;
       print('? TodoProvider: Task created successfully: ${todo.id}');
       
-      // Reload data after creating a new todo
-      print('? TodoProvider: Reloading data after task creation');
-      await loadTodos();
+      // Selectively refresh the relevant data, not everything
+      if (todo.dueDate != null) {
+        final now = DateTime.now();
+        final today = DateTime(now.year, now.month, now.day);
+        final tomorrow = today.add(const Duration(days: 1));
+        
+        if (todo.dueDate!.isAfter(today) && todo.dueDate!.isBefore(tomorrow)) {
+          await getTodayTodos(); // Refresh today's todos
+        } else if (todo.dueDate!.isAfter(tomorrow)) {
+          await getUpcomingTodos(); // Refresh upcoming todos
+        }
+      }
+      
+      // If the todo has a category, refresh that category's todos
+      if (todo.category != null) {
+        await getTodosByCategory(todo.category!.id);
+      } else {
+        await getGeneralTodos(); // Refresh general todos
+      }
+      
+      await getAllTodos(); // Always refresh the all todos list
+      
     } catch (e) {
       _error = e.toString();
       print('? TodoProvider: createTodo() Error: $_error');
@@ -162,25 +181,42 @@ class TodoProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      // Perform the server call first
+      // Perform the server call
       final todo = await _graphQLService.toggleTodo(id);
       _error = null;
       print('? TodoProvider: toggleTodo() - Task toggled successfully. Completed: ${todo.completed}');
       
-      // Reload data after toggling a todo
-      print('? TodoProvider: toggleTodo() - Reloading data after task toggle');
-      await loadTodos();
+      // Refresh specific data based on the toggled todo
+      if (todo.completed) {
+        await getCompletedTodayTodos(); // Refresh completed todos
+      }
+      
+      // Refresh the appropriate category
+      if (todo.category != null) {
+        await getTodosByCategory(todo.category!.id);
+      } else {
+        await getGeneralTodos();
+      }
+      
+      // Refresh today todos if due date is today
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+      final tomorrow = today.add(const Duration(days: 1));
+      if (todo.dueDate != null && 
+          todo.dueDate!.isAfter(today) && 
+          todo.dueDate!.isBefore(tomorrow)) {
+        await getTodayTodos();
+      }
+      
+      await getAllTodos(); // Always refresh all todos
+      
+      _isLoading = false;
+      notifyListeners();
     } catch (e) {
       _error = e.toString();
       print('? TodoProvider: toggleTodo() - Error: $_error');
-      
-      // Even on error, reload data to ensure UI consistency
-      await loadTodos();
-    } finally {
       _isLoading = false;
-      // Make sure UI gets updated
       notifyListeners();
-      print('? TodoProvider: notifyListeners() - UI update triggered after task toggle');
     }
   }
 
@@ -191,27 +227,51 @@ class TodoProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      // Optimistically update UI before server response
-      notifyListeners();
+      // First get the todo to know which lists to refresh
+      final todos = await getAllTodos();
+      final todoToDelete = todos.firstWhere(
+        (todo) => todo.id == id,
+        orElse: () => Todo(
+          id: id,
+          title: '',
+          completed: false,
+          updatedAt: DateTime.now(),
+        ),
+      );
       
       await _graphQLService.deleteTodo(id);
       _error = null;
       print('? TodoProvider: deleteTodo() - Task deleted successfully');
       
-      // Reload data after deleting a todo
-      print('? TodoProvider: deleteTodo() - Reloading data after task deletion');
-      await loadTodos();
+      // Refresh specific data based on the deleted todo
+      if (todoToDelete.category != null) {
+        await getTodosByCategory(todoToDelete.category!.id);
+      } else {
+        await getGeneralTodos();
+      }
+      
+      // Refresh today todos if due date was today
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+      final tomorrow = today.add(const Duration(days: 1));
+      if (todoToDelete.dueDate != null && 
+          todoToDelete.dueDate!.isAfter(today) && 
+          todoToDelete.dueDate!.isBefore(tomorrow)) {
+        await getTodayTodos();
+      } else if (todoToDelete.dueDate != null && 
+                todoToDelete.dueDate!.isAfter(tomorrow)) {
+        await getUpcomingTodos();
+      }
+      
+      await getAllTodos(); // Always refresh all todos
+      
+      _isLoading = false;
+      notifyListeners();
     } catch (e) {
       _error = e.toString();
       print('? TodoProvider: deleteTodo() - Error: $_error');
-      
-      // Even on error, reload data to ensure UI consistency
-      await loadTodos();
-    } finally {
       _isLoading = false;
-      // Make sure UI gets updated
       notifyListeners();
-      print('? TodoProvider: notifyListeners() - UI update triggered after task deletion');
     }
   }
 
@@ -227,6 +287,7 @@ class TodoProvider with ChangeNotifier {
     _isLoading = true;
     notifyListeners();
     try {
+      // Keep this method as is since it's used for initial load and manual refresh
       await getTodayTodos();
       await getUpcomingTodos();
       await getAllTodos();

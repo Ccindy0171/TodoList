@@ -13,17 +13,28 @@ class CategoryProvider with ChangeNotifier {
   String? get error => _error;
 
   Future<void> loadCategories() async {
+    print('? CategoryProvider: loadCategories() - Started loading categories');
     _isLoading = true;
     _error = null;
     notifyListeners();
 
     try {
-      _categories = await _graphQLService.getCategories();
+      final fetchedCategories = await _graphQLService.getCategories();
+      print('? CategoryProvider: Loaded ${fetchedCategories.length} categories');
+      
+      // Log each category for debugging
+      for (final category in fetchedCategories) {
+        print('? Category: id=${category.id}, name=${category.name}, color=${category.color}');
+      }
+      
+      _categories = fetchedCategories;
     } catch (e) {
       _error = e.toString();
+      print('? CategoryProvider: Error loading categories - $_error');
     } finally {
       _isLoading = false;
       notifyListeners();
+      print('? CategoryProvider: notifyListeners() - UI update triggered after loading categories');
     }
   }
 
@@ -31,15 +42,29 @@ class CategoryProvider with ChangeNotifier {
     required String name,
     required String color,
   }) async {
+    print('? CategoryProvider: createCategory(name: $name, color: $color) - Started');
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+    
     try {
-      final category = await _graphQLService.createCategory(
+      final newCategory = await _graphQLService.createCategory(
         name: name,
         color: color,
       );
-      _categories.add(category);
-      notifyListeners();
+      
+      print('? CategoryProvider: Created new category - id=${newCategory.id}, name=${newCategory.name}');
+      
+      // Instead of just reloading, update local list immediately for better UX
+      _categories.add(newCategory);
+      
+      // Then reload all categories from server to ensure we have the latest data
+      await loadCategories();
+      
     } catch (e) {
       _error = e.toString();
+      _isLoading = false;
+      print('? CategoryProvider: Error creating category - $_error');
       notifyListeners();
     }
   }

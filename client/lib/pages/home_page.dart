@@ -13,34 +13,17 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
+class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
     print('? HomePage: initState() - Initializing');
-    WidgetsBinding.instance.addObserver(this);
     // Initial load
     WidgetsBinding.instance.addPostFrameCallback((_) {
       print('? HomePage: addPostFrameCallback - Loading initial data');
       context.read<TodoProvider>().loadTodos();
       context.read<CategoryProvider>().loadCategories();
     });
-  }
-
-  @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    super.dispose();
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
-      // Refetch when app is resumed
-      print('? HomePage: didChangeAppLifecycleState - App resumed, refreshing data');
-      context.read<TodoProvider>().loadTodos();
-      context.read<CategoryProvider>().loadCategories();
-    }
   }
 
   Future<void> _refreshData() async {

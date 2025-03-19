@@ -38,31 +38,6 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
     print('? TaskDetailPage: initState() - Initializing for "${widget.title}"');
     _loadData();
   }
-  
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    print('? TaskDetailPage: didChangeDependencies() - Checking for provider changes');
-    // Reload data whenever TodoProvider changes
-    final todoProvider = Provider.of<TodoProvider>(context, listen: false);
-    // This ensures we're always showing the latest data
-    todoProvider.addListener(_onProviderChanged);
-  }
-  
-  @override
-  void dispose() {
-    print('? TaskDetailPage: dispose() - Cleaning up');
-    // Remove listener when page is disposed
-    Provider.of<TodoProvider>(context, listen: false).removeListener(_onProviderChanged);
-    super.dispose();
-  }
-  
-  void _onProviderChanged() {
-    print('? TaskDetailPage: _onProviderChanged() - Provider notified changes for "${widget.title}"');
-    if (mounted) {
-      _loadData();
-    }
-  }
 
   Future<void> _loadData() async {
     if (!mounted) return;
@@ -144,7 +119,11 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
                 showDialog(
                   context: context,
                   builder: (context) => const AddTaskDialog(),
-                ).then((_) => _loadData()); // Refresh after adding
+                ).then((result) {
+                  if (result == true) {
+                    _loadData(); // Refresh data if a task was created
+                  }
+                });
               },
             )
           else if (widget.title != 'Completed')
@@ -156,7 +135,11 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
                   builder: (context) => AddTaskDialog(
                     categoryId: (widget.type == 'category' && widget.categoryId != 'General') ? widget.categoryId : null,
                   ),
-                ).then((_) => _loadData()); // Refresh after adding
+                ).then((result) {
+                  if (result == true) {
+                    _loadData(); // Refresh data if a task was created
+                  }
+                });
               },
             ),
         ],
@@ -182,7 +165,11 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
             builder: (context) => AddTaskDialog(
               categoryId: widget.type == 'category' ? widget.categoryId : null,
             ),
-          ).then((_) => _loadData()); // Refresh after adding
+          ).then((result) {
+            if (result == true) {
+              _loadData(); // Refresh data if a task was created
+            }
+          });
         },
         child: const Icon(Icons.add),
       ) : null,

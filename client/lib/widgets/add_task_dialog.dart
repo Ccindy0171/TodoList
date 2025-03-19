@@ -29,6 +29,7 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
   String? _selectedCategoryId;
   bool _isCreatingNewCategory = false;
   String _selectedColor = '#FF0000';
+  bool _isLoading = false;
 
   final List<String> _predefinedColors = [
     '#FF0000', // Red
@@ -57,7 +58,11 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
       _selectedCategoryId = widget.categoryId;
     }
     
-    context.read<CategoryProvider>().loadCategories();
+    // Force refresh categories when dialog opens
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      print('? AddTaskDialog: Refreshing categories on initialization');
+      context.read<CategoryProvider>().loadCategories();
+    });
   }
 
   @override
@@ -96,14 +101,40 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
 
   Future<void> _createNewCategory() async {
     if (_newCategoryController.text.isNotEmpty) {
+      setState(() {
+        _isLoading = true;
+      });
+      
+      print('? AddTaskDialog: Creating new category: ${_newCategoryController.text}');
       await context.read<CategoryProvider>().createCategory(
         name: _newCategoryController.text,
         color: _selectedColor,
       );
-      setState(() {
-        _isCreatingNewCategory = false;
-        _newCategoryController.clear();
-      });
+      
+      // Force refresh categories
+      final categoryProvider = context.read<CategoryProvider>();
+      
+      // Select the newly created category
+      final newCategory = categoryProvider.categories
+          .where((cat) => cat.name == _newCategoryController.text)
+          .firstOrNull;
+      
+      if (newCategory != null) {
+        print('? AddTaskDialog: Found newly created category: ${newCategory.id} - ${newCategory.name}');
+        setState(() {
+          _selectedCategoryId = newCategory.id;
+          _isCreatingNewCategory = false;
+          _newCategoryController.clear();
+          _isLoading = false;
+        });
+      } else {
+        print('?? AddTaskDialog: Could not find newly created category');
+        setState(() {
+          _isCreatingNewCategory = false;
+          _newCategoryController.clear();
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -139,9 +170,9 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
         description: _descriptionController.text.isEmpty ? null : _descriptionController.text,
         categoryId: categoryId,
         dueDate: dueDate,
-      );
-
-      Navigator.of(context).pop();
+      ).then((_) {
+        Navigator.of(context).pop(true); // Return true to indicate a task was created
+      });
     }
   }
 
@@ -180,13 +211,19 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
               const SizedBox(height: 16),
               Consumer<CategoryProvider>(
                 builder: (context, categoryProvider, child) {
-                  if (categoryProvider.isLoading) {
+                  print('? AddTaskDialog: Consumer rebuilding, found ${categoryProvider.categories.length} categories');
+                  
+                  if (categoryProvider.isLoading || _isLoading) {
                     return const Center(child: CircularProgressIndicator());
                   }
 
                   if (categoryProvider.error != null) {
                     return Text('Error: ${categoryProvider.error}');
                   }
+
+                  // Sort categories for better UX
+                  final sortedCategories = List<models.Category>.from(categoryProvider.categories);
+                  sortedCategories.sort((a, b) => a.name.compareTo(b.name));
 
                   return Column(
                     children: [
@@ -202,7 +239,7 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
                               value: null,
                               child: Text('None'),
                             ),
-                            ...categoryProvider.categories.map((category) {
+                            ...sortedCategories.map((category) {
                               return DropdownMenuItem<String?>(
                                 value: category.id,
                                 child: Row(
@@ -234,13 +271,24 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
                           },
                           hint: const Text('Select a category (optional)'),
                         ),
-                        TextButton(
-                          onPressed: () {
-                            setState(() {
-                              _isCreatingNewCategory = true;
-                            });
-                          },
-                          child: const Text('Create New Category'),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            TextButton(
+                              onPressed: () {
+                                categoryProvider.loadCategories();
+                              },
+                              child: const Text('Refresh Categories'),
+                            ),
+                            TextButton(
+                              onPressed: () {
+                                setState(() {
+                                  _isCreatingNewCategory = true;
+                                });
+                              },
+                              child: const Text('Create New Category'),
+                            ),
+                          ],
                         ),
                       ] else ...[
                         TextFormField(

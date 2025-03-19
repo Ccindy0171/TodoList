@@ -25,31 +25,6 @@ class _TodayTasksPageState extends State<TodayTasksPage> {
     print('? TodayTasksPage: initState() - Initializing');
     _loadData();
   }
-  
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    print('? TodayTasksPage: didChangeDependencies() - Checking for provider changes');
-    // Reload data whenever TodoProvider changes
-    final todoProvider = Provider.of<TodoProvider>(context, listen: false);
-    // This ensures we're always showing the latest data
-    todoProvider.addListener(_onProviderChanged);
-  }
-  
-  @override
-  void dispose() {
-    print('? TodayTasksPage: dispose() - Cleaning up');
-    // Remove listener when page is disposed
-    Provider.of<TodoProvider>(context, listen: false).removeListener(_onProviderChanged);
-    super.dispose();
-  }
-  
-  void _onProviderChanged() {
-    print('? TodayTasksPage: _onProviderChanged() - Provider notified changes');
-    if (mounted) {
-      _loadData();
-    }
-  }
 
   Future<void> _loadData() async {
     if (!mounted) return;
@@ -100,7 +75,11 @@ class _TodayTasksPageState extends State<TodayTasksPage> {
               showDialog(
                 context: context,
                 builder: (context) => const AddTaskDialog(),
-              ).then((_) => _loadData()); // Refresh after adding
+              ).then((result) {
+                if (result == true) {
+                  _loadData(); // Refresh if a task was created
+                }
+              });
             },
           ),
         ],
@@ -126,7 +105,11 @@ class _TodayTasksPageState extends State<TodayTasksPage> {
             builder: (context) => AddTaskDialog(
               initialDate: DateTime.now(),
             ),
-          ).then((_) => _loadData()); // Refresh after adding
+          ).then((result) {
+            if (result == true) {
+              _loadData(); // Refresh if a task was created
+            }
+          });
         },
         child: const Icon(Icons.add),
       ),

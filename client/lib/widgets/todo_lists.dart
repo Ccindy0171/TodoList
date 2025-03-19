@@ -6,15 +6,35 @@ import '../providers/category_provider.dart';
 import '../models/category.dart';
 import '../models/todo.dart';
 
-class TodoLists extends StatelessWidget {
+class TodoLists extends StatefulWidget {
   const TodoLists({super.key});
 
+  @override
+  State<TodoLists> createState() => _TodoListsState();
+}
+
+class _TodoListsState extends State<TodoLists> {
+  // Use keys to force rebuilds when needed
+  final _generalTodosKey = GlobalKey();
+  final Map<String, GlobalKey> _categoryKeys = {};
+  
+  @override
+  void initState() {
+    super.initState();
+    // Force a reload of categories when the widget is first created
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final categoryProvider = Provider.of<CategoryProvider>(context, listen: false);
+      categoryProvider.loadCategories();
+    });
+  }
+  
   @override
   Widget build(BuildContext context) {
     print('? TodoLists: build() - Building widget');
     return Consumer2<TodoProvider, CategoryProvider>(
       builder: (context, todoProvider, categoryProvider, child) {
         print('? TodoLists: Consumer rebuilding with provider hashCode: ${todoProvider.hashCode}');
+        print('? TodoLists: Found ${categoryProvider.categories.length} categories');
         
         // Load categories if needed
         if (categoryProvider.categories.isEmpty && !categoryProvider.isLoading) {
@@ -33,37 +53,53 @@ class TodoLists extends StatelessWidget {
           );
         }
         
-        return FutureBuilder(
-          key: ValueKey('${todoProvider.hashCode}-${categoryProvider.hashCode}'),
-          future: todoProvider.getGeneralTodos(),
-          builder: (context, generalSnapshot) {
-            // Handle general todos loading state
-            if (generalSnapshot.connectionState == ConnectionState.waiting) {
-              print('? TodoLists: Waiting for general todos data...');
-              return const SizedBox(
-                height: 100,
-                child: Center(child: CircularProgressIndicator()),
-              );
-            }
-            
-            // Handle errors fetching general todos
-            if (generalSnapshot.hasError) {
-              print('? TodoLists: Error loading general todos - ${generalSnapshot.error}');
-              return Center(child: Text('Error: ${generalSnapshot.error}'));
-            }
-            
-            final generalTodos = generalSnapshot.data ?? [];
-            print('? TodoLists: General Tasks loaded: ${generalTodos.length}');
-            
-            // Sort categories alphabetically
-            final categories = List<Category>.from(categoryProvider.categories);
-            categories.sort((a, b) => a.name.compareTo(b.name));
-            print('? TodoLists: Categories loaded: ${categories.length}');
-
-            return Column(
-              children: [
-                // General category (no category)
-                CategoryListTile(
+        // Ensure we have keys for all categories
+        for (final category in categoryProvider.categories) {
+          if (!_categoryKeys.containsKey(category.id)) {
+            _categoryKeys[category.id] = GlobalKey();
+          }
+        }
+        
+        // Clean up keys for categories that no longer exist
+        _categoryKeys.removeWhere((key, value) => 
+          !categoryProvider.categories.any((category) => category.id == key));
+        
+        // Cache future for general todos
+        final generalTodosFuture = todoProvider.getGeneralTodos();
+        
+        // Sort categories alphabetically for display
+        final sortedCategories = List<Category>.from(categoryProvider.categories);
+        sortedCategories.sort((a, b) => a.name.compareTo(b.name));
+        
+        return Column(
+          children: [
+            // General category (no category)
+            FutureBuilder(
+              key: _generalTodosKey,
+              future: generalTodosFuture,
+              builder: (context, generalSnapshot) {
+                // Handle general todos loading state
+                if (generalSnapshot.connectionState == ConnectionState.waiting) {
+                  print('? TodoLists: Waiting for general todos data...');
+                  return const SizedBox(
+                    height: 60, // Reduced height for better UX
+                    child: Center(child: CircularProgressIndicator()),
+                  );
+                }
+                
+                // Handle errors fetching general todos
+                if (generalSnapshot.hasError) {
+                  print('? TodoLists: Error loading general todos - ${generalSnapshot.error}');
+                  return SizedBox(
+                    height: 60,
+                    child: Center(child: Text('Error: ${generalSnapshot.error}')),
+                  );
+                }
+                
+                final generalTodos = generalSnapshot.data ?? [];
+                print('? TodoLists: General Tasks loaded: ${generalTodos.length}');
+                
+                return CategoryListTile(
                   title: 'General',
                   icon: Icons.folder_outlined,
                   color: Colors.grey,
@@ -99,6 +135,7 @@ class TodoLists extends StatelessWidget {
                           ),
                           TextButton(
                             onPressed: () {
+                              setState(() {}); // Force rebuild
                               todoProvider.getGeneralTodos().then((_) {
                                 Navigator.of(context).pop();
                                 ScaffoldMessenger.of(context).showSnackBar(
@@ -108,53 +145,91 @@ class TodoLists extends StatelessWidget {
                             },
                             child: const Text('Refresh'),
                           ),
+                          TextButton(
+                            onPressed: () {
+                              categoryProvider.loadCategories().then((_) {
+                                setState(() {}); // Force rebuild
+                                Navigator.of(context).pop();
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Refreshed categories')),
+                                );
+                              });
+                            },
+                            child: const Text('Refresh Categories'),
+                          ),
                         ],
                       ),
                     );
                   },
+                );
+              },
+            ),
+            
+            // Display a message if no categories are found
+            if (sortedCategories.isEmpty && !categoryProvider.isLoading)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 16.0),
+                child: Center(
+                  child: Column(
+                    children: [
+                      const Text('No categories found'),
+                      TextButton(
+                        onPressed: () {
+                          setState(() {});
+                          categoryProvider.loadCategories();
+                        },
+                        child: const Text('Refresh Categories'),
+                      ),
+                    ],
+                  ),
                 ),
-                
-                // User-created categories
-                ...categories.map((category) => FutureBuilder<List<Todo>>(
-                  future: todoProvider.getTodosByCategory(category.id),
-                  builder: (context, todoSnapshot) {
-                    if (todoSnapshot.connectionState == ConnectionState.waiting) {
-                      return CategoryListTile(
-                        title: category.name,
-                        icon: Icons.label_outline,
-                        color: Color(int.parse(category.color.replaceAll('#', '0xFF'))),
-                        count: 0,
-                        categoryId: category.id,
-                        isLoading: true,
-                      );
-                    }
-                    
-                    if (todoSnapshot.hasError) {
-                      print('?? Error loading tasks for category ${category.name}: ${todoSnapshot.error}');
-                      return CategoryListTile(
-                        title: category.name,
-                        icon: Icons.label_outline,
-                        color: Color(int.parse(category.color.replaceAll('#', '0xFF'))),
-                        count: 0,
-                        categoryId: category.id,
-                        hasError: true,
-                      );
-                    }
-                    
-                    final todoCount = todoSnapshot.data?.length ?? 0;
-                    
+              ),
+            
+            // Display sorted categories
+            ...sortedCategories.map((category) {
+              // Cache the future for each category's todos
+              final categoryTodosFuture = todoProvider.getTodosByCategory(category.id);
+              
+              return FutureBuilder<List<Todo>>(
+                key: _categoryKeys[category.id],
+                future: categoryTodosFuture,
+                builder: (context, todoSnapshot) {
+                  if (todoSnapshot.connectionState == ConnectionState.waiting) {
                     return CategoryListTile(
                       title: category.name,
                       icon: Icons.label_outline,
                       color: Color(int.parse(category.color.replaceAll('#', '0xFF'))),
-                      count: todoCount,
+                      count: 0,
                       categoryId: category.id,
+                      isLoading: true,
                     );
-                  },
-                )).toList(),
-              ],
-            );
-          },
+                  }
+                  
+                  if (todoSnapshot.hasError) {
+                    print('?? Error loading tasks for category ${category.name}: ${todoSnapshot.error}');
+                    return CategoryListTile(
+                      title: category.name,
+                      icon: Icons.label_outline,
+                      color: Color(int.parse(category.color.replaceAll('#', '0xFF'))),
+                      count: 0,
+                      categoryId: category.id,
+                      hasError: true,
+                    );
+                  }
+                  
+                  final todoCount = todoSnapshot.data?.length ?? 0;
+                  
+                  return CategoryListTile(
+                    title: category.name,
+                    icon: Icons.label_outline,
+                    color: Color(int.parse(category.color.replaceAll('#', '0xFF'))),
+                    count: todoCount,
+                    categoryId: category.id,
+                  );
+                },
+              );
+            }).toList(),
+          ],
         );
       },
     );

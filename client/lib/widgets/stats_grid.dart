@@ -13,13 +13,21 @@ class StatsGrid extends StatelessWidget {
     return Consumer<TodoProvider>(
       builder: (context, todoProvider, child) {
         print('? StatsGrid: Consumer rebuilding with provider hashCode: ${todoProvider.hashCode}');
+        
+        // Cache the futures to avoid unnecessary rebuilds
+        final todayTodosFuture = todoProvider.getTodayTodos();
+        final upcomingTodosFuture = todoProvider.getUpcomingTodos();
+        final allTodosFuture = todoProvider.getAllTodos();
+        final completedTodosFuture = todoProvider.getCompletedTodayTodos();
+        
         return FutureBuilder(
-          key: ValueKey(todoProvider.hashCode),
+          // Use a stable key that won't change with every provider update
+          key: const ValueKey('stats_grid'),
           future: Future.wait([
-            todoProvider.getTodayTodos(),
-            todoProvider.getUpcomingTodos(),
-            todoProvider.getAllTodos(),
-            todoProvider.getCompletedTodayTodos(),
+            todayTodosFuture,
+            upcomingTodosFuture,
+            allTodosFuture,
+            completedTodosFuture,
           ]),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {

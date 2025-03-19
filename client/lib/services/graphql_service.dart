@@ -37,6 +37,7 @@ class GraphQLService {
     final result = await _client.query(
       QueryOptions(
         document: gql(query),
+        fetchPolicy: FetchPolicy.networkOnly, // Always fetch from server, not cache
       ),
     );
 
