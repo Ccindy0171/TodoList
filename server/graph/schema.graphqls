@@ -53,6 +53,8 @@ input TodoFilter {
   categoryId: ID
   startDate: Time
   endDate: Time
+  updatedBefore: Time
+  updatedAfter: Time
   priority: Int
   tags: [String!]
   noCategoryOnly: Boolean

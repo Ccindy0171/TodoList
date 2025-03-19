@@ -4956,7 +4956,7 @@ func (ec *executionContext) unmarshalInputTodoFilter(ctx context.Context, obj an
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"completed", "categoryId", "startDate", "endDate", "priority", "tags", "noCategoryOnly"}
+	fieldsInOrder := [...]string{"completed", "categoryId", "startDate", "endDate", "updatedBefore", "updatedAfter", "priority", "tags", "noCategoryOnly"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -4991,6 +4991,20 @@ func (ec *executionContext) unmarshalInputTodoFilter(ctx context.Context, obj an
 				return it, err
 			}
 			it.EndDate = data
+		case "updatedBefore":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("updatedBefore"))
+			data, err := ec.unmarshalOTime2ᚖtimeᚐTime(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.UpdatedBefore = data
+		case "updatedAfter":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("updatedAfter"))
+			data, err := ec.unmarshalOTime2ᚖtimeᚐTime(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.UpdatedAfter = data
 		case "priority":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("priority"))
 			data, err := ec.unmarshalOInt2ᚖint32(ctx, v)

@@ -4,6 +4,7 @@ import '../pages/task_detail_page.dart';
 import '../providers/todo_provider.dart';
 import '../providers/category_provider.dart';
 import '../models/category.dart';
+import '../models/todo.dart';
 
 class TodoLists extends StatelessWidget {
   const TodoLists({super.key});
@@ -15,38 +16,49 @@ class TodoLists extends StatelessWidget {
       builder: (context, todoProvider, categoryProvider, child) {
         print('? TodoLists: Consumer rebuilding with provider hashCode: ${todoProvider.hashCode}');
         
-        if (categoryProvider.isLoading) {
-          return const Center(child: CircularProgressIndicator());
+        // Load categories if needed
+        if (categoryProvider.categories.isEmpty && !categoryProvider.isLoading) {
+          print('? TodoLists: Categories empty, triggering load');
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            categoryProvider.loadCategories();
+          });
         }
         
-        // Ensure categories are loaded
-        if (categoryProvider.categories.isEmpty) {
-          categoryProvider.loadCategories();
+        // Show loading if category provider is still loading
+        if (categoryProvider.isLoading) {
+          print('? TodoLists: CategoryProvider is loading');
+          return const SizedBox(
+            height: 100,
+            child: Center(child: CircularProgressIndicator()),
+          );
         }
         
         return FutureBuilder(
           key: ValueKey('${todoProvider.hashCode}-${categoryProvider.hashCode}'),
-          future: Future.wait([
-            todoProvider.getGeneralTodos(),
-            Future.value(categoryProvider.categories),
-          ]),
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              print('? TodoLists: Waiting for data...');
-              return const Center(child: CircularProgressIndicator());
-            }
-            if (snapshot.hasError) {
-              print('? TodoLists: Error loading data - ${snapshot.error}');
-              return Center(child: Text('Error: ${snapshot.error}'));
+          future: todoProvider.getGeneralTodos(),
+          builder: (context, generalSnapshot) {
+            // Handle general todos loading state
+            if (generalSnapshot.connectionState == ConnectionState.waiting) {
+              print('? TodoLists: Waiting for general todos data...');
+              return const SizedBox(
+                height: 100,
+                child: Center(child: CircularProgressIndicator()),
+              );
             }
             
-            final generalTodos = snapshot.data![0] as List<dynamic>;
-            final categories = snapshot.data![1] as List<Category>;
+            // Handle errors fetching general todos
+            if (generalSnapshot.hasError) {
+              print('? TodoLists: Error loading general todos - ${generalSnapshot.error}');
+              return Center(child: Text('Error: ${generalSnapshot.error}'));
+            }
             
-            print('? TodoLists: Data loaded - General Tasks: ${generalTodos.length}, Categories: ${categories.length}');
-
+            final generalTodos = generalSnapshot.data ?? [];
+            print('? TodoLists: General Tasks loaded: ${generalTodos.length}');
+            
             // Sort categories alphabetically
+            final categories = List<Category>.from(categoryProvider.categories);
             categories.sort((a, b) => a.name.compareTo(b.name));
+            print('? TodoLists: Categories loaded: ${categories.length}');
 
             return Column(
               children: [
@@ -56,11 +68,54 @@ class TodoLists extends StatelessWidget {
                   icon: Icons.folder_outlined,
                   color: Colors.grey,
                   count: generalTodos.length,
-                  categoryId: 'none',
+                  categoryId: 'General',
+                  onLongPress: () {
+                    // Debug information
+                    showDialog(
+                      context: context,
+                      builder: (context) => AlertDialog(
+                        title: const Text('Debug - General Category'),
+                        content: SingleChildScrollView(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('General todos count: ${generalTodos.length}'),
+                              if (generalTodos.isNotEmpty) ...[
+                                const SizedBox(height: 16),
+                                ...generalTodos.map((todo) => Text(
+                                  'Todo: ${todo.title} (Category: ${todo.category?.name ?? "none"})'
+                                )).toList(),
+                              ]
+                            ],
+                          ),
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () {
+                              Navigator.of(context).pop();
+                            },
+                            child: const Text('Close'),
+                          ),
+                          TextButton(
+                            onPressed: () {
+                              todoProvider.getGeneralTodos().then((_) {
+                                Navigator.of(context).pop();
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Refreshed general todos')),
+                                );
+                              });
+                            },
+                            child: const Text('Refresh'),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
                 ),
                 
                 // User-created categories
-                ...categories.map((category) => FutureBuilder<List<dynamic>>(
+                ...categories.map((category) => FutureBuilder<List<Todo>>(
                   future: todoProvider.getTodosByCategory(category.id),
                   builder: (context, todoSnapshot) {
                     if (todoSnapshot.connectionState == ConnectionState.waiting) {
@@ -114,6 +169,7 @@ class CategoryListTile extends StatelessWidget {
   final String categoryId;
   final bool isLoading;
   final bool hasError;
+  final VoidCallback? onLongPress;
 
   const CategoryListTile({
     super.key,
@@ -124,6 +180,7 @@ class CategoryListTile extends StatelessWidget {
     required this.categoryId,
     this.isLoading = false,
     this.hasError = false,
+    this.onLongPress,
   });
 
   @override
@@ -165,6 +222,7 @@ class CategoryListTile extends StatelessWidget {
           ),
         );
       },
+      onLongPress: onLongPress,
     );
   }
 } 

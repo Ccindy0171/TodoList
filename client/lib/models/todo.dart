@@ -32,17 +32,25 @@ class Todo {
   });
 
   factory Todo.fromJson(Map<String, dynamic> json) {
+    List<String>? tags;
+    if (json['tags'] != null) {
+      if (json['tags'] is List) {
+        tags = (json['tags'] as List).map((item) => item.toString()).toList();
+      }
+    }
+
+    // Handle potentially missing or null fields
     return Todo(
       id: json['id'] as String,
       title: json['title'] as String,
       description: json['description'] as String?,
-      completed: json['completed'] as bool,
+      completed: json['completed'] as bool? ?? false,
       category: json['category'] != null ? Category.fromJson(json['category'] as Map<String, dynamic>) : null,
       dueDate: json['dueDate'] != null ? DateTime.parse(json['dueDate'] as String) : null,
       location: json['location'] as String?,
       priority: json['priority'] as int?,
-      tags: (json['tags'] as List<dynamic>?)?.cast<String>(),
-      updatedAt: DateTime.parse(json['updatedAt'] as String),
+      tags: tags,
+      updatedAt: json['updatedAt'] != null ? DateTime.parse(json['updatedAt'] as String) : DateTime.now(),
       createdAt: null,
     );
   }

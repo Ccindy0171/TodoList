@@ -48,7 +48,15 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
     super.initState();
     _selectedDate = widget.initialDate ?? DateTime.now();
     _selectedTime = const TimeOfDay(hour: 23, minute: 59);
-    _selectedCategoryId = widget.categoryId;
+    
+    // Handle General category as null for the dropdown
+    if (widget.categoryId == 'General') {
+      _selectedCategoryId = null;
+      print('? AddTaskDialog: Converting General category to null in initialization');
+    } else {
+      _selectedCategoryId = widget.categoryId;
+    }
+    
     context.read<CategoryProvider>().loadCategories();
   }
 
@@ -116,10 +124,20 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
         _selectedTime!.minute,
       );
 
+      print('? AddTaskDialog: Creating task with title: ${_titleController.text}, categoryId: $_selectedCategoryId');
+      
+      // CategoryId handling - pass explicit null for no category
+      // This ensures we don't pass 'General' string as a categoryId
+      String? categoryId = _selectedCategoryId;
+      if (categoryId == 'General') {
+        categoryId = null;
+        print('? AddTaskDialog: Converting General category to null');
+      }
+
       context.read<TodoProvider>().createTodo(
         title: _titleController.text,
         description: _descriptionController.text.isEmpty ? null : _descriptionController.text,
-        categoryId: _selectedCategoryId,
+        categoryId: categoryId,
         dueDate: dueDate,
       );
 
@@ -173,19 +191,19 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
                   return Column(
                     children: [
                       if (!_isCreatingNewCategory) ...[
-                        DropdownButtonFormField<String>(
+                        DropdownButtonFormField<String?>(
                           value: _selectedCategoryId,
                           decoration: const InputDecoration(
                             labelText: 'Category (optional)',
                             border: OutlineInputBorder(),
                           ),
                           items: [
-                            const DropdownMenuItem(
+                            const DropdownMenuItem<String?>(
                               value: null,
                               child: Text('None'),
                             ),
                             ...categoryProvider.categories.map((category) {
-                              return DropdownMenuItem(
+                              return DropdownMenuItem<String?>(
                                 value: category.id,
                                 child: Row(
                                   children: [
@@ -211,8 +229,10 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
                           onChanged: (value) {
                             setState(() {
                               _selectedCategoryId = value;
+                              print('Selected category: $_selectedCategoryId');
                             });
                           },
+                          hint: const Text('Select a category (optional)'),
                         ),
                         TextButton(
                           onPressed: () {

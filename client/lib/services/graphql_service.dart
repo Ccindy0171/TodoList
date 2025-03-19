@@ -88,28 +88,45 @@ class GraphQLService {
   Future<List<Todo>> getTodos({
     bool? completed,
     String? categoryId,
+    bool? noCategoryOnly,
     DateTime? startDate,
     DateTime? endDate,
+    DateTime? updatedBefore,
+    DateTime? updatedAfter,
     int? priority,
     List<String>? tags,
   }) async {
-    print('? GraphQL Request: getTodos(completed: $completed, startDate: $startDate, endDate: $endDate, priority: $priority, categoryId: $categoryId)');
+    print('? GraphQL Request: getTodos(completed: $completed, categoryId: $categoryId, noCategoryOnly: $noCategoryOnly)');
     
-    final Map<String, dynamic> variables = {
-      'filter': {
-        if (completed != null) 'completed': completed,
-        if (categoryId != null && categoryId != 'none') 'categoryId': categoryId,
-        if (categoryId == 'none') 'noCategoryOnly': true, // Special case: fetch only tasks with no category
-        if (startDate != null) 'startDate': _formatDateTime(startDate),
-        if (endDate != null) 'endDate': _formatDateTime(endDate),
-        if (priority != null) 'priority': priority,
-        if (tags != null) 'tags': tags,
-      }
+    Map<String, dynamic> filterMap = {};
+    
+    if (completed != null) filterMap['completed'] = completed;
+    
+    // Handle categoryId and noCategoryOnly
+    if (categoryId == 'none' || noCategoryOnly == true) {
+      filterMap['noCategoryOnly'] = true;
+      print('? Setting noCategoryOnly=true for filter');
+    } else if (categoryId != null && categoryId.isNotEmpty && categoryId != 'General') {
+      filterMap['categoryId'] = categoryId;
+      print('? Setting categoryId=$categoryId for filter');
+    }
+    
+    if (startDate != null) filterMap['startDate'] = _formatDateTime(startDate);
+    if (endDate != null) filterMap['endDate'] = _formatDateTime(endDate);
+    
+    // Add new filter parameters
+    if (updatedBefore != null) filterMap['updatedBefore'] = _formatDateTime(updatedBefore);
+    if (updatedAfter != null) filterMap['updatedAfter'] = _formatDateTime(updatedAfter);
+    
+    if (priority != null) filterMap['priority'] = priority;
+    if (tags != null && tags.isNotEmpty) filterMap['tags'] = tags;
+    
+    final variables = {
+      'filter': filterMap
     };
     
     print('? GraphQL Variables: ${variables.toString()}');
 
-    // Query WITHOUT createdAt field 
     const String query = '''
       query GetTodos(\$filter: TodoFilter) {
         todos(filter: \$filter) {
@@ -164,6 +181,47 @@ class GraphQLService {
     int? priority,
     List<String>? tags,
   }) async {
+    print('? GraphQL Request: createTodo(title: $title, categoryId: $categoryId)');
+    
+    final Map<String, dynamic> inputMap = {
+      'title': title,
+    };
+    
+    if (description != null && description.isNotEmpty) {
+      inputMap['description'] = description;
+    }
+    
+    // Only add categoryId if it has a valid value
+    if (categoryId != null && categoryId.isNotEmpty && 
+        categoryId != 'none' && categoryId != 'General') {
+      inputMap['categoryId'] = categoryId;
+      print('? Setting categoryId: $categoryId');
+    } else {
+      print('? Creating task with no category');
+    }
+    
+    if (dueDate != null) {
+      inputMap['dueDate'] = _formatDateTime(dueDate);
+    }
+    
+    if (location != null && location.isNotEmpty) {
+      inputMap['location'] = location;
+    }
+    
+    if (priority != null) {
+      inputMap['priority'] = priority;
+    }
+    
+    if (tags != null && tags.isNotEmpty) {
+      inputMap['tags'] = tags;
+    }
+    
+    final variables = {
+      'input': inputMap
+    };
+    
+    print('? GraphQL Variables: ${variables.toString()}');
+
     // Mutation WITHOUT createdAt field in category
     const String mutation = '''
       mutation CreateTodo(\$input: TodoInput!) {
@@ -186,34 +244,27 @@ class GraphQLService {
       }
     ''';
 
-    final variables = {
-      'input': {
-        'title': title,
-        if (description != null) 'description': description,
-        if (categoryId != null) 'categoryId': categoryId,
-        if (dueDate != null) 'dueDate': _formatDateTime(dueDate),
-        if (location != null) 'location': location,
-        if (priority != null) 'priority': priority,
-        if (tags != null) 'tags': tags,
-      }
-    };
-
     final result = await _client.mutate(
       MutationOptions(
         document: gql(mutation),
         variables: variables,
+        fetchPolicy: FetchPolicy.noCache,
       ),
     );
 
     if (result.hasException) {
+      print('? GraphQL Error: ${result.exception.toString()}');
       throw Exception(result.exception.toString());
     }
 
-    return Todo.fromJson(result.data?['createTodo']);
+    final todo = Todo.fromJson(result.data?['createTodo']);
+    print('? GraphQL Response: Todo created successfully with ID: ${todo.id}');
+    return todo;
   }
 
   Future<Todo> toggleTodo(String id) async {
-    // Mutation WITHOUT createdAt field in category
+    print('? GraphQL Request: toggleTodo(id: $id)');
+    
     const String mutation = '''
       mutation ToggleTodo(\$id: ID!) {
         toggleTodo(id: \$id) {
@@ -235,37 +286,127 @@ class GraphQLService {
       }
     ''';
 
-    // Add 'todo:' prefix if it's not already there
-    final formattedId = id.startsWith('todo:') ? id : 'todo:$id';
+    final variables = {
+      'id': id
+    };
+    
+    print('? GraphQL Variables: ${variables.toString()}');
 
     final result = await _client.mutate(
       MutationOptions(
         document: gql(mutation),
-        variables: {'id': formattedId},
+        variables: variables,
+        fetchPolicy: FetchPolicy.noCache,
       ),
     );
 
     if (result.hasException) {
+      print('? GraphQL Error: ${result.exception.toString()}');
       throw Exception(result.exception.toString());
     }
 
-    return Todo.fromJson(result.data?['toggleTodo']);
+    final todo = Todo.fromJson(result.data?['toggleTodo']);
+    print('? GraphQL Response: Todo toggled successfully, completed: ${todo.completed}');
+    return todo;
   }
 
   Future<bool> deleteTodo(String id) async {
+    print('? GraphQL Request: deleteTodo(id: $id)');
+    
     const String mutation = '''
       mutation DeleteTodo(\$id: ID!) {
         deleteTodo(id: \$id)
       }
     ''';
 
-    // Add 'todo:' prefix if it's not already there
-    final formattedId = id.startsWith('todo:') ? id : 'todo:$id';
+    // Use the ID as-is without modification
+    final variables = {
+      'id': id
+    };
+    
+    print('? GraphQL Variables: ${variables.toString()}');
 
     final result = await _client.mutate(
       MutationOptions(
         document: gql(mutation),
-        variables: {'id': formattedId},
+        variables: variables,
+      ),
+    );
+
+    if (result.hasException) {
+      print('? GraphQL Error: ${result.exception.toString()}');
+      throw Exception(result.exception.toString());
+    }
+
+    final success = result.data?['deleteTodo'] ?? false;
+    print('? GraphQL Response: Todo deleted successfully: $success');
+    return success;
+  }
+
+  Future<Todo> updateTodo({
+    required String id,
+    String? title,
+    String? description,
+    bool? completed,
+    String? categoryId,
+    DateTime? dueDate,
+    String? location,
+    int? priority,
+    List<String>? tags,
+  }) async {
+    print('? GraphQL Request: updateTodo(id: $id, title: $title, completed: $completed, categoryId: $categoryId)');
+    
+    // Handle 'none' category specifically
+    if (categoryId == 'none') {
+      categoryId = null;
+      print('? Converting "none" category to null for updateTodo request');
+    }
+    
+    final Map<String, dynamic> inputMap = {
+      'id': id,
+    };
+    
+    if (title != null) inputMap['title'] = title;
+    if (description != null) inputMap['description'] = description;
+    if (completed != null) inputMap['completed'] = completed;
+    if (categoryId != null) inputMap['categoryId'] = categoryId;
+    if (dueDate != null) inputMap['dueDate'] = _formatDateTime(dueDate);
+    if (location != null) inputMap['location'] = location;
+    if (priority != null) inputMap['priority'] = priority;
+    if (tags != null) inputMap['tags'] = tags;
+    
+    final variables = {
+      'input': inputMap
+    };
+    
+    print('? GraphQL Variables: ${variables.toString()}');
+
+    // Mutation WITHOUT createdAt field in category
+    const String mutation = '''
+      mutation UpdateTodo(\$input: TodoInput!) {
+        updateTodo(input: \$input) {
+          id
+          title
+          description
+          completed
+          category {
+            id
+            name
+            color
+          }
+          dueDate
+          location
+          priority
+          tags
+          updatedAt
+        }
+      }
+    ''';
+
+    final result = await _client.mutate(
+      MutationOptions(
+        document: gql(mutation),
+        variables: variables,
       ),
     );
 
@@ -273,6 +414,6 @@ class GraphQLService {
       throw Exception(result.exception.toString());
     }
 
-    return result.data?['deleteTodo'] ?? false;
+    return Todo.fromJson(result.data?['updateTodo']);
   }
 } 

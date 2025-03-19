@@ -50,17 +50,25 @@ class TodoProvider with ChangeNotifier {
     
     return await _graphQLService.getTodos(
       completed: true, // Explicitly request completed tasks
-      startDate: startOfDay,
-      endDate: endOfDay,
+      updatedAfter  : startOfDay,
+      updatedBefore: endOfDay,
     );
   }
 
   Future<List<Todo>> getGeneralTodos() async {
     print('? TodoProvider: getGeneralTodos() - Fetching non-completed tasks with no category');
-    return await _graphQLService.getTodos(
-      completed: false,
-      categoryId: 'none', // Special value to indicate no category
-    );
+    try {
+      final todos = await _graphQLService.getTodos(
+        completed: false,
+        categoryId: 'none', // Special value to indicate no category
+      );
+      print('? TodoProvider: getGeneralTodos() - Successfully fetched ${todos.length} tasks');
+      return todos;
+    } catch (e) {
+      print('? TodoProvider: getGeneralTodos() - Error: $e');
+      // Return empty list on error instead of propagating exception
+      return [];
+    }
   }
 
   Future<List<Todo>> getReminders() async {
@@ -80,11 +88,28 @@ class TodoProvider with ChangeNotifier {
   }
 
   Future<List<Todo>> getTodosByCategory(String categoryId) async {
-    print('? TodoProvider: getTodosByCategory(categoryId: $categoryId) - Fetching non-completed tasks');
-    return await _graphQLService.getTodos(
-      completed: false,
-      categoryId: categoryId,
-    );
+    print('? Getting todos for category: $categoryId');
+    try {
+      final bool isGeneral = categoryId == 'General';
+      
+      // For General category, we want todos with no category
+      final result = await _graphQLService.getTodos(
+        completed: false,
+        categoryId: isGeneral ? 'none' : categoryId,
+        noCategoryOnly: isGeneral ? true : null,
+      );
+      
+      print('? Successfully fetched ${result.length} todos for category: $categoryId');
+      // Log each todo for debugging
+      for (final todo in result) {
+        print('? Todo: id=${todo.id}, title=${todo.title}, category=${todo.category?.name ?? 'none'}');
+      }
+      
+      return result;
+    } catch (e) {
+      print('? Error fetching todos by category $categoryId: $e');
+      return [];
+    }
   }
 
   Future<void> createTodo({
@@ -96,13 +121,15 @@ class TodoProvider with ChangeNotifier {
     int? priority,
     List<String>? tags,
   }) async {
-    print('+ TodoProvider: createTodo(title: $title) - Started');
+    print('? TodoProvider: createTodo(title: $title, categoryId: $categoryId) - Started');
     _isLoading = true;
     _error = null;
     notifyListeners();
 
     try {
-      await _graphQLService.createTodo(
+      // Handle categoryId correctly - no need to transform it here, 
+      // GraphQLService will handle it properly
+      final todo = await _graphQLService.createTodo(
         title: title,
         description: description,
         categoryId: categoryId,
@@ -111,15 +138,16 @@ class TodoProvider with ChangeNotifier {
         priority: priority,
         tags: tags,
       );
+      
       _error = null;
-      print('? TodoProvider: createTodo() - Task created successfully');
+      print('? TodoProvider: Task created successfully: ${todo.id}');
       
       // Reload data after creating a new todo
-      print('? TodoProvider: createTodo() - Reloading data after task creation');
+      print('? TodoProvider: Reloading data after task creation');
       await loadTodos();
     } catch (e) {
       _error = e.toString();
-      print('? TodoProvider: createTodo() - Error: $_error');
+      print('? TodoProvider: createTodo() Error: $_error');
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -134,12 +162,10 @@ class TodoProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      // Optimistically update UI before server response
-      notifyListeners();
-      
-      await _graphQLService.toggleTodo(id);
+      // Perform the server call first
+      final todo = await _graphQLService.toggleTodo(id);
       _error = null;
-      print('? TodoProvider: toggleTodo() - Task toggled successfully');
+      print('? TodoProvider: toggleTodo() - Task toggled successfully. Completed: ${todo.completed}');
       
       // Reload data after toggling a todo
       print('? TodoProvider: toggleTodo() - Reloading data after task toggle');
@@ -208,6 +234,7 @@ class TodoProvider with ChangeNotifier {
       await getGeneralTodos();
       await getReminders();
       await getFuturePlans();
+      await getRecentlyUpdatedTasks();
       print('? TodoProvider: loadTodos() - All todo lists refreshed successfully');
     } catch (e) {
       _error = e.toString();
@@ -216,6 +243,37 @@ class TodoProvider with ChangeNotifier {
       _isLoading = false;
       notifyListeners();
       print('? TodoProvider: notifyListeners() - UI update triggered');
+    }
+  }
+
+  Future<List<Todo>> getTasksUpdatedBetween(DateTime start, DateTime end) async {
+    print('? TodoProvider: getTasksUpdatedBetween(start: $start, end: $end) - Fetching tasks updated in date range');
+    try {
+      final todos = await _graphQLService.getTodos(
+        updatedAfter: start,
+        updatedBefore: end, 
+      );
+      print('? TodoProvider: getTasksUpdatedBetween() - Successfully fetched ${todos.length} tasks');
+      return todos;
+    } catch (e) {
+      print('? TodoProvider: getTasksUpdatedBetween() - Error: $e');
+      return [];
+    }
+  }
+
+  Future<List<Todo>> getRecentlyUpdatedTasks() async {
+    print('? TodoProvider: getRecentlyUpdatedTasks() - Fetching recently updated tasks');
+    final now = DateTime.now();
+    final oneDayAgo = now.subtract(const Duration(days: 1));
+    try {
+      final todos = await _graphQLService.getTodos(
+        updatedAfter: oneDayAgo,
+      );
+      print('? TodoProvider: getRecentlyUpdatedTasks() - Successfully fetched ${todos.length} tasks');
+      return todos;
+    } catch (e) {
+      print('? TodoProvider: getRecentlyUpdatedTasks() - Error: $e');
+      return [];
     }
   }
 } 

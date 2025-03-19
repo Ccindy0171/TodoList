@@ -95,7 +95,7 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
           todos = await context.read<TodoProvider>().getTodosByCategory(widget.title);
         }
       } else if (widget.type == 'category') {
-        if (widget.categoryId == 'none') {
+        if (widget.categoryId == 'General') {
           todos = await context.read<TodoProvider>().getGeneralTodos();
         } else if (widget.categoryId != null) {
           todos = await context.read<TodoProvider>().getTodosByCategory(widget.categoryId!);
@@ -154,7 +154,7 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
                 showDialog(
                   context: context,
                   builder: (context) => AddTaskDialog(
-                    categoryId: widget.type == 'category' ? widget.categoryId : null,
+                    categoryId: (widget.type == 'category' && widget.categoryId != 'General') ? widget.categoryId : null,
                   ),
                 ).then((_) => _loadData()); // Refresh after adding
               },
