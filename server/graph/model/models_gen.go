@@ -40,12 +40,13 @@ type Todo struct {
 }
 
 type TodoFilter struct {
-	Completed  *bool      `json:"completed,omitempty"`
-	CategoryID *string    `json:"categoryId,omitempty"`
-	StartDate  *time.Time `json:"startDate,omitempty"`
-	EndDate    *time.Time `json:"endDate,omitempty"`
-	Priority   *int32     `json:"priority,omitempty"`
-	Tags       []string   `json:"tags,omitempty"`
+	Completed      *bool      `json:"completed,omitempty"`
+	CategoryID     *string    `json:"categoryId,omitempty"`
+	StartDate      *time.Time `json:"startDate,omitempty"`
+	EndDate        *time.Time `json:"endDate,omitempty"`
+	Priority       *int32     `json:"priority,omitempty"`
+	Tags           []string   `json:"tags,omitempty"`
+	NoCategoryOnly *bool      `json:"noCategoryOnly,omitempty"`
 }
 
 type TodoInput struct {

@@ -4956,7 +4956,7 @@ func (ec *executionContext) unmarshalInputTodoFilter(ctx context.Context, obj an
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"completed", "categoryId", "startDate", "endDate", "priority", "tags"}
+	fieldsInOrder := [...]string{"completed", "categoryId", "startDate", "endDate", "priority", "tags", "noCategoryOnly"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -5005,6 +5005,13 @@ func (ec *executionContext) unmarshalInputTodoFilter(ctx context.Context, obj an
 				return it, err
 			}
 			it.Tags = data
+		case "noCategoryOnly":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("noCategoryOnly"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.NoCategoryOnly = data
 		}
 	}
 

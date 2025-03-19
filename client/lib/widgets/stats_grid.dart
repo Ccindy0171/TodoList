@@ -9,45 +9,73 @@ class StatsGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    print('? StatsGrid: build() - Building widget');
     return Consumer<TodoProvider>(
       builder: (context, todoProvider, child) {
-        final todayTodos = todoProvider.getTodayTodos();
-        final upcomingTodos = todoProvider.getUpcomingTodos();
-        final completedTodos = todoProvider.getCompletedTodayTodos();
-        final allTodos = todoProvider.getAllTodos();
+        print('? StatsGrid: Consumer rebuilding with provider hashCode: ${todoProvider.hashCode}');
+        return FutureBuilder(
+          key: ValueKey(todoProvider.hashCode),
+          future: Future.wait([
+            todoProvider.getTodayTodos(),
+            todoProvider.getUpcomingTodos(),
+            todoProvider.getAllTodos(),
+            todoProvider.getCompletedTodayTodos(),
+          ]),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              print('? StatsGrid: Waiting for data...');
+              return const Center(child: CircularProgressIndicator());
+            }
+            if (snapshot.hasError) {
+              print('? StatsGrid: Error loading data - ${snapshot.error}');
+              return Center(child: Text('Error: ${snapshot.error}'));
+            }
+            
+            final todayTodos = snapshot.data![0];
+            final upcomingTodos = snapshot.data![1];
+            final allTodos = snapshot.data![2];
+            final completedTodos = snapshot.data![3];
+            
+            print('? StatsGrid: Data loaded - Today: ${todayTodos.length}, Planned: ${upcomingTodos.length}, All: ${allTodos.length}, Completed: ${completedTodos.length}');
 
-        return GridView.count(
-          shrinkWrap: true,
-          crossAxisCount: 2,
-          mainAxisSpacing: 16,
-          crossAxisSpacing: 16,
-          childAspectRatio: 1.5,
-          children: [
-            StatCard(
-              title: 'Today',
-              count: todayTodos.length.toString(),
-              icon: Icons.calendar_today,
-              color: Colors.blue,
-            ),
-            StatCard(
-              title: 'Planned',
-              count: upcomingTodos.length.toString(),
-              icon: Icons.list_alt,
-              color: Colors.red,
-            ),
-            StatCard(
-              title: 'All',
-              count: allTodos.length.toString(),
-              icon: Icons.folder,
-              color: Colors.black87,
-            ),
-            StatCard(
-              title: 'Completed',
-              count: completedTodos.length.toString(),
-              icon: Icons.check_circle_outline,
-              color: Colors.green,
-            ),
-          ],
+            return GridView.count(
+              shrinkWrap: true,
+              crossAxisCount: 2,
+              mainAxisSpacing: 16,
+              crossAxisSpacing: 16,
+              childAspectRatio: 1.5,
+              children: [
+                StatCard(
+                  title: 'Today',
+                  count: todayTodos.length.toString(),
+                  icon: Icons.calendar_today,
+                  color: Colors.blue,
+                  type: 'stat',
+                ),
+                StatCard(
+                  title: 'Planned',
+                  count: upcomingTodos.length.toString(),
+                  icon: Icons.calendar_month,
+                  color: Colors.red,
+                  type: 'stat',
+                ),
+                StatCard(
+                  title: 'All',
+                  count: allTodos.length.toString(),
+                  icon: Icons.folder,
+                  color: Colors.black87,
+                  type: 'stat',
+                ),
+                StatCard(
+                  title: 'Completed',
+                  count: completedTodos.length.toString(),
+                  icon: Icons.check_circle_outline,
+                  color: Colors.green,
+                  type: 'stat',
+                ),
+              ],
+            );
+          },
         );
       },
     );
@@ -59,6 +87,7 @@ class StatCard extends StatelessWidget {
   final String count;
   final IconData icon;
   final Color color;
+  final String type;
 
   const StatCard({
     super.key,
@@ -66,6 +95,7 @@ class StatCard extends StatelessWidget {
     required this.count,
     required this.icon,
     required this.color,
+    required this.type,
   });
 
   @override
@@ -81,7 +111,7 @@ class StatCard extends StatelessWidget {
                     title: title,
                     icon: icon,
                     color: color,
-                    type: 'stat',
+                    type: type,
                   ),
           ),
         );

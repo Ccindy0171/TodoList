@@ -22,7 +22,7 @@ class GraphQLService {
   }
 
   Future<List<Category>> getCategories() async {
-    const String query = r'''
+    const String query = '''
       query GetCategories {
         categories {
           id
@@ -52,9 +52,9 @@ class GraphQLService {
     required String name,
     required String color,
   }) async {
-    const String mutation = r'''
-      mutation CreateCategory($input: CategoryInput!) {
-        createCategory(input: $input) {
+    const String mutation = '''
+      mutation CreateCategory(\$input: CategoryInput!) {
+        createCategory(input: \$input) {
           id
           name
           color
@@ -93,9 +93,26 @@ class GraphQLService {
     int? priority,
     List<String>? tags,
   }) async {
-    const String query = r'''
-      query GetTodos($filter: TodoFilter) {
-        todos(filter: $filter) {
+    print('? GraphQL Request: getTodos(completed: $completed, startDate: $startDate, endDate: $endDate, priority: $priority, categoryId: $categoryId)');
+    
+    final Map<String, dynamic> variables = {
+      'filter': {
+        if (completed != null) 'completed': completed,
+        if (categoryId != null && categoryId != 'none') 'categoryId': categoryId,
+        if (categoryId == 'none') 'noCategoryOnly': true, // Special case: fetch only tasks with no category
+        if (startDate != null) 'startDate': _formatDateTime(startDate),
+        if (endDate != null) 'endDate': _formatDateTime(endDate),
+        if (priority != null) 'priority': priority,
+        if (tags != null) 'tags': tags,
+      }
+    };
+    
+    print('? GraphQL Variables: ${variables.toString()}');
+
+    // Query WITHOUT createdAt field 
+    const String query = '''
+      query GetTodos(\$filter: TodoFilter) {
+        todos(filter: \$filter) {
           id
           title
           description
@@ -104,8 +121,6 @@ class GraphQLService {
             id
             name
             color
-            createdAt
-            updatedAt
           }
           dueDate
           location
@@ -116,30 +131,28 @@ class GraphQLService {
       }
     ''';
 
-    final variables = {
-      'filter': {
-        if (completed != null) 'completed': completed,
-        if (categoryId != null) 'categoryId': categoryId,
-        if (startDate != null) 'startDate': _formatDateTime(startDate),
-        if (endDate != null) 'endDate': _formatDateTime(endDate),
-        if (priority != null) 'priority': priority,
-        if (tags != null) 'tags': tags,
-      }
-    };
-
     final result = await _client.query(
       QueryOptions(
         document: gql(query),
         variables: variables,
+        fetchPolicy: FetchPolicy.networkOnly, // Always fetch from server, not cache
       ),
     );
 
     if (result.hasException) {
+      print('? GraphQL Error: ${result.exception.toString()}');
       throw Exception(result.exception.toString());
     }
 
     final List<dynamic> todosJson = result.data?['todos'] ?? [];
-    return todosJson.map((json) => Todo.fromJson(json)).toList();
+    final todos = todosJson.map((json) => Todo.fromJson(json)).toList();
+    
+    print('? GraphQL Response: ${todos.length} todos received (completed: $completed)');
+    todos.forEach((todo) {
+      print('  ? Todo: ${todo.id} - ${todo.title} - completed: ${todo.completed}');
+    });
+    
+    return todos;
   }
 
   Future<Todo> createTodo({
@@ -151,9 +164,10 @@ class GraphQLService {
     int? priority,
     List<String>? tags,
   }) async {
-    const String mutation = r'''
-      mutation CreateTodo($input: TodoInput!) {
-        createTodo(input: $input) {
+    // Mutation WITHOUT createdAt field in category
+    const String mutation = '''
+      mutation CreateTodo(\$input: TodoInput!) {
+        createTodo(input: \$input) {
           id
           title
           description
@@ -162,8 +176,6 @@ class GraphQLService {
             id
             name
             color
-            createdAt
-            updatedAt
           }
           dueDate
           location
@@ -201,9 +213,10 @@ class GraphQLService {
   }
 
   Future<Todo> toggleTodo(String id) async {
-    const String mutation = r'''
-      mutation ToggleTodo($id: ID!) {
-        toggleTodo(id: $id) {
+    // Mutation WITHOUT createdAt field in category
+    const String mutation = '''
+      mutation ToggleTodo(\$id: ID!) {
+        toggleTodo(id: \$id) {
           id
           title
           description
@@ -212,8 +225,6 @@ class GraphQLService {
             id
             name
             color
-            createdAt
-            updatedAt
           }
           dueDate
           location
@@ -242,9 +253,9 @@ class GraphQLService {
   }
 
   Future<bool> deleteTodo(String id) async {
-    const String mutation = r'''
-      mutation DeleteTodo($id: ID!) {
-        deleteTodo(id: $id)
+    const String mutation = '''
+      mutation DeleteTodo(\$id: ID!) {
+        deleteTodo(id: \$id)
       }
     ''';
 

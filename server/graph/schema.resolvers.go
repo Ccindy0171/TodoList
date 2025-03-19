@@ -200,7 +200,7 @@ func (r *mutationResolver) ToggleTodo(ctx context.Context, id string) (*model.To
 
 // DeleteTodo is the resolver for the deleteTodo field.
 func (r *mutationResolver) DeleteTodo(ctx context.Context, id string) (bool, error) {
-	_, err := database.DB.Delete("todo:" + id)
+	_, err := database.DB.Delete(id)
 	if err != nil {
 		return false, fmt.Errorf("failed to delete todo: %v", err)
 	}
@@ -279,6 +279,9 @@ func (r *queryResolver) Todos(ctx context.Context, filter *model.TodoFilter) ([]
 		}
 		if filter.CategoryID != nil {
 			conditions = append(conditions, fmt.Sprintf("categoryId = '%s'", *filter.CategoryID))
+		}
+		if filter.NoCategoryOnly != nil && *filter.NoCategoryOnly {
+			conditions = append(conditions, "(categoryId IS NULL OR categoryId = '' OR categoryId = 'null')")
 		}
 		if filter.StartDate != nil {
 			conditions = append(conditions, fmt.Sprintf("dueDate >= '%s'", filter.StartDate.Format(time.RFC3339)))

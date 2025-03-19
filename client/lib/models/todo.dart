@@ -11,6 +11,10 @@ class Todo {
   final int? priority;
   final List<String>? tags;
   final DateTime updatedAt;
+  
+  // This field is deprecated as it's not included in TodoOutput from the server
+  // Use updatedAt for sorting or display purposes instead
+  @deprecated
   final DateTime? createdAt;
 
   Todo({
@@ -39,7 +43,7 @@ class Todo {
       priority: json['priority'] as int?,
       tags: (json['tags'] as List<dynamic>?)?.cast<String>(),
       updatedAt: DateTime.parse(json['updatedAt'] as String),
-      createdAt: json['createdAt'] != null ? DateTime.parse(json['createdAt'] as String) : null,
+      createdAt: null,
     );
   }
 
