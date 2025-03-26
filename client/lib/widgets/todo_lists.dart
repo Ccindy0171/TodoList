@@ -21,7 +21,7 @@ class _TodoListsState extends State<TodoLists> {
   @override
   void initState() {
     super.initState();
-    // Force a reload of categories when the widget is first created
+    // Load categories once when the widget is first created
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final categoryProvider = Provider.of<CategoryProvider>(context, listen: false);
       categoryProvider.loadCategories();
@@ -35,14 +35,6 @@ class _TodoListsState extends State<TodoLists> {
       builder: (context, todoProvider, categoryProvider, child) {
         print('? TodoLists: Consumer rebuilding with provider hashCode: ${todoProvider.hashCode}');
         print('? TodoLists: Found ${categoryProvider.categories.length} categories');
-        
-        // Load categories if needed
-        if (categoryProvider.categories.isEmpty && !categoryProvider.isLoading) {
-          print('? TodoLists: Categories empty, triggering load');
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            categoryProvider.loadCategories();
-          });
-        }
         
         // Show loading if category provider is still loading
         if (categoryProvider.isLoading) {

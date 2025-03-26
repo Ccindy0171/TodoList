@@ -286,7 +286,7 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
                                   _isCreatingNewCategory = true;
                                 });
                               },
-                              child: const Text('Create New Category'),
+                              child: const Text('New Category'),
                             ),
                           ],
                         ),
