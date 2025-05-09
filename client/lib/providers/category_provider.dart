@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import '../models/category.dart' as models;
 import '../services/graphql_service.dart';
+import 'package:flutter/material.dart';
+import 'dart:math';
 
 class CategoryProvider with ChangeNotifier {
   final GraphQLService _graphQLService = GraphQLService();
@@ -8,9 +10,62 @@ class CategoryProvider with ChangeNotifier {
   bool _isLoading = false;
   String? _error;
 
+  // Predefined colors that can be used for categories
+  static final List<String> predefinedColors = [
+    '#FF0000', // Red
+    '#00FF00', // Green
+    '#0000FF', // Blue
+    '#FFFF00', // Yellow
+    '#FF00FF', // Magenta
+    '#00FFFF', // Cyan
+    '#FFA500', // Orange
+    '#800080', // Purple
+    '#008000', // Dark Green
+    '#000080', // Navy Blue
+    '#FF4500', // OrangeRed
+    '#8B4513', // SaddleBrown
+    '#4682B4', // SteelBlue
+    '#2E8B57', // SeaGreen
+    '#9932CC', // DarkOrchid
+    '#FF6347', // Tomato
+    '#808000', // Olive
+    '#4169E1', // RoyalBlue
+    '#32CD32', // LimeGreen
+    '#8A2BE2', // BlueViolet
+  ];
+
   List<models.Category> get categories => _categories;
   bool get isLoading => _isLoading;
   String? get error => _error;
+
+  // Returns a list of colors that are not currently used by any category
+  List<String> getAvailableColors() {
+    final usedColors = _categories.map((c) => c.color.toLowerCase()).toSet();
+    return predefinedColors.where((color) => !usedColors.contains(color.toLowerCase())).toList();
+  }
+
+  // Check if a color is already used by any category
+  bool isColorUnique(String color, {String? excludeCategoryId}) {
+    return !_categories.any((cat) => 
+      cat.color.toLowerCase() == color.toLowerCase() && 
+      cat.id != excludeCategoryId
+    );
+  }
+
+  // Get a unique color from the predefined list
+  String getUniqueColor() {
+    final availableColors = getAvailableColors();
+    if (availableColors.isNotEmpty) {
+      return availableColors.first;
+    }
+    
+    // If all predefined colors are used, generate a random color
+    final Random random = Random();
+    final int r = random.nextInt(256);
+    final int g = random.nextInt(256);
+    final int b = random.nextInt(256);
+    return '#${r.toRadixString(16).padLeft(2, '0')}${g.toRadixString(16).padLeft(2, '0')}${b.toRadixString(16).padLeft(2, '0')}';
+  }
 
   Future<void> loadCategories() async {
     print('? CategoryProvider: loadCategories() - Started loading categories');
@@ -38,34 +93,27 @@ class CategoryProvider with ChangeNotifier {
     }
   }
 
-  Future<void> createCategory({
+  Future<models.Category> createCategory({
     required String name,
     required String color,
   }) async {
-    print('? CategoryProvider: createCategory(name: $name, color: $color) - Started');
-    _isLoading = true;
-    _error = null;
+    print('? CategoryProvider: createCategory(name: $name, color: $color)');
+    
+    // Ensure the color is unique
+    String finalColor = color;
+    if (!isColorUnique(finalColor)) {
+      finalColor = getUniqueColor();
+      print('? CategoryProvider: Color was not unique, assigned new color: $finalColor');
+    }
+    
+    final category = await _graphQLService.createCategory(
+      name: name,
+      color: finalColor,
+    );
+    
+    _categories.add(category);
     notifyListeners();
     
-    try {
-      final newCategory = await _graphQLService.createCategory(
-        name: name,
-        color: color,
-      );
-      
-      print('? CategoryProvider: Created new category - id=${newCategory.id}, name=${newCategory.name}');
-      
-      // Instead of just reloading, update local list immediately for better UX
-      _categories.add(newCategory);
-      
-      // Then reload all categories from server to ensure we have the latest data
-      await loadCategories();
-      
-    } catch (e) {
-      _error = e.toString();
-      _isLoading = false;
-      print('? CategoryProvider: Error creating category - $_error');
-      notifyListeners();
-    }
+    return category;
   }
 } 

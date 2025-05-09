@@ -32,37 +32,46 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
   String _selectedColor = '#FF0000';
   bool _isLoading = false;
 
-  final List<String> _predefinedColors = [
-    '#FF0000', // Red
-    '#00FF00', // Green
-    '#0000FF', // Blue
-    '#FFFF00', // Yellow
-    '#FF00FF', // Magenta
-    '#00FFFF', // Cyan
-    '#FFA500', // Orange
-    '#800080', // Purple
-    '#008000', // Dark Green
-    '#000080', // Navy Blue
-  ];
+  // We'll now use the predefined colors from CategoryProvider instead
+  List<String> _availableColors = [];
 
   @override
   void initState() {
     super.initState();
-    _selectedDate = widget.initialDate ?? DateTime.now();
-    _selectedTime = const TimeOfDay(hour: 23, minute: 59);
+    print('? AddTaskDialog: initState() called');
     
-    // Handle General category as null for the dropdown
-    if (widget.categoryId == 'General') {
-      _selectedCategoryId = null;
-      print('? AddTaskDialog: Converting General category to null in initialization');
-    } else {
+    // Set the initial categoryId if provided
+    if (widget.categoryId != null) {
       _selectedCategoryId = widget.categoryId;
     }
     
-    // Force refresh categories when dialog opens
+    // Set the initial date if provided, otherwise use current date
+    _selectedDate = widget.initialDate ?? DateTime.now();
+    
+    // Use current time rounded to next 15 minutes as default time
+    final now = TimeOfDay.now();
+    final minute = (now.minute / 15).ceil() * 15 % 60;
+    final hour = now.hour + ((now.minute / 15).ceil() * 15 / 60).floor();
+    _selectedTime = TimeOfDay(hour: hour % 24, minute: minute);
+    
+    // Load available colors
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      print('? AddTaskDialog: Refreshing categories on initialization');
-      context.read<CategoryProvider>().loadCategories();
+      _updateAvailableColors();
+    });
+  }
+
+  void _updateAvailableColors() {
+    final categoryProvider = context.read<CategoryProvider>();
+    setState(() {
+      _availableColors = categoryProvider.getAvailableColors();
+      // If no available colors, use the first predefined color
+      if (_availableColors.isEmpty) {
+        _availableColors = CategoryProvider.predefinedColors.take(5).toList();
+      }
+      // Set the initially selected color to the first available color
+      if (_availableColors.isNotEmpty) {
+        _selectedColor = _availableColors.first;
+      }
     });
   }
 
@@ -108,21 +117,16 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
       });
       
       print('? AddTaskDialog: Creating new category: ${_newCategoryController.text}');
-      await context.read<CategoryProvider>().createCategory(
+      final categoryProvider = context.read<CategoryProvider>();
+      
+      // Create the category with the selected color - the provider will ensure it's unique
+      final newCategory = await categoryProvider.createCategory(
         name: _newCategoryController.text,
         color: _selectedColor,
       );
       
-      // Force refresh categories
-      final categoryProvider = context.read<CategoryProvider>();
-      
-      // Select the newly created category
-      final newCategory = categoryProvider.categories
-          .where((cat) => cat.name == _newCategoryController.text)
-          .firstOrNull;
-      
       if (newCategory != null) {
-        print('? AddTaskDialog: Found newly created category: ${newCategory.id} - ${newCategory.name}');
+        print('? AddTaskDialog: Created new category: ${newCategory.id} - ${newCategory.name}');
         setState(() {
           _selectedCategoryId = newCategory.id;
           _isCreatingNewCategory = false;
@@ -130,7 +134,7 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
           _isLoading = false;
         });
       } else {
-        print('?? AddTaskDialog: Could not find newly created category');
+        print('?? AddTaskDialog: Could not create new category');
         setState(() {
           _isCreatingNewCategory = false;
           _newCategoryController.clear();
@@ -317,7 +321,7 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
                             labelText: 'Category Color',
                             border: OutlineInputBorder(),
                           ),
-                          items: _predefinedColors.map((color) {
+                          items: _availableColors.map((color) {
                             return DropdownMenuItem(
                               value: color,
                               child: Row(
@@ -326,9 +330,7 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
                                     width: 16,
                                     height: 16,
                                     decoration: BoxDecoration(
-                                      color: Color(
-                                        int.parse(color.replaceAll('#', '0xFF')),
-                                      ),
+                                      color: _parseColor(color),
                                       shape: BoxShape.circle,
                                     ),
                                   ),
@@ -338,10 +340,10 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
                               ),
                             );
                           }).toList(),
-                          onChanged: (value) {
-                            if (value != null) {
+                          onChanged: (newValue) {
+                            if (newValue != null) {
                               setState(() {
-                                _selectedColor = value;
+                                _selectedColor = newValue;
                               });
                             }
                           },
@@ -418,5 +420,18 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
         ),
       ],
     );
+  }
+
+  // Helper function to safely parse color
+  Color _parseColor(String colorString) {
+    try {
+      if (colorString.startsWith('#')) {
+        return Color(int.parse(colorString.substring(1), radix: 16) + 0xFF000000);
+      } else {
+        return Color(int.parse(colorString, radix: 16));
+      }
+    } catch (e) {
+      return Colors.grey;
+    }
   }
 } 

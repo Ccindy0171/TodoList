@@ -182,11 +182,21 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
     final isOptimisticallyCompleted = _optimisticallyCompletedIds.contains(todo.id);
     final showAsCompleted = todo.completed || isOptimisticallyCompleted;
     
-    // Format date in a human-readable way
+    // Check if we're in a view that should only show time (not full date)
+    final bool showTimeOnly = widget.type == 'chronological' || 
+                             widget.title == 'Chronological View' ||
+                             widget.title == 'Today';
+    
+    // Format date in a human-readable way with YYYY-MM-DD HH:MM format
     String formatDateTime(DateTime dateTime) {
       final formattedDate = '${dateTime.year}-${dateTime.month.toString().padLeft(2, '0')}-${dateTime.day.toString().padLeft(2, '0')}';
       final formattedTime = '${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
       return '$formattedDate $formattedTime';
+    }
+    
+    // Format just the time portion
+    String formatTimeOnly(DateTime dateTime) {
+      return '${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
     }
     
     // Parse color string to Color object safely
@@ -220,7 +230,7 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
         ],
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4),
+        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
         child: ListTile(
           onTap: () {
             Navigator.push(
@@ -234,29 +244,10 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
               }
             });
           },
-          leading: IconButton(
-            icon: Icon(
-              showAsCompleted ? Icons.check_circle : Icons.radio_button_unchecked,
-              color: showAsCompleted ? Colors.green : widget.color,
-              size: 26,
-            ),
-            onPressed: () {
-              // Optimistic update: add to set of completed IDs
-              setState(() {
-                if (!todo.completed) {
-                  _optimisticallyCompletedIds.add(todo.id);
-                }
-              });
-              
-              // Perform the actual toggle in the backend
-              context.read<TodoProvider>().toggleTodo(todo.id).then((_) {
-                // After actual toggle, clear the optimistic state and reload data
-                setState(() {
-                  _optimisticallyCompletedIds.remove(todo.id);
-                });
-                _loadData();
-              });
-            },
+          leading: Icon(
+            showAsCompleted ? Icons.check_circle : Icons.radio_button_unchecked,
+            color: showAsCompleted ? Colors.green : widget.color,
+            size: 26,
           ),
           title: Padding(
             padding: const EdgeInsets.only(bottom: 4),
@@ -285,106 +276,72 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
                   ),
                 ),
                 
-              // Location (if any) - Enhanced display with color and border
+              // Location (if any) - Simpler display like in Completed Tasks view
               if (todo.location != null && todo.location!.isNotEmpty)
-                Container(
-                  margin: const EdgeInsets.only(bottom: 8),
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                  decoration: BoxDecoration(
-                    color: Colors.orange.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: Colors.orange.withOpacity(0.3)),
-                  ),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
                   child: Row(
-                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(
                         Icons.location_on,
-                        size: 18,
-                        color: Colors.deepOrange,
-                      ),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          todo.location!,
-                          style: const TextStyle(
-                            color: Colors.black87,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                
-              // Category (for all views now) - Positioned between location and date
-              if (todo.category != null)
-                Container(
-                  margin: const EdgeInsets.only(bottom: 8),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 12,
-                        height: 12,
-                        decoration: BoxDecoration(
-                          color: parseColor(todo.category!.color),
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        todo.category!.name,
-                        style: TextStyle(
-                          color: Colors.grey[800],
-                          fontWeight: FontWeight.w500,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                
-              // Completion time or Due date (always at the bottom)
-              if (widget.title == 'Completed')
-                Row(
-                  children: [
-                    Icon(
-                      Icons.check_circle_outline,
-                      size: 14,
-                      color: Colors.green[600],
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      'Completed at ${todo.updatedAt.hour.toString().padLeft(2, '0')}:${todo.updatedAt.minute.toString().padLeft(2, '0')}',
-                      style: TextStyle(
+                        size: 16,
                         color: Colors.grey[600],
-                        fontStyle: FontStyle.italic,
-                        fontSize: 13,
                       ),
+                      const SizedBox(width: 4),
+                      Text(
+                        todo.location!,
+                        style: TextStyle(
+                          color: Colors.grey[700],
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                
+              // Due date or Completion time
+              if (showAsCompleted)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: Text(
+                    'Completed at ${formatDateTime(todo.updatedAt)}',
+                    style: TextStyle(
+                      color: Colors.grey[600],
+                      fontStyle: FontStyle.italic,
+                      fontSize: 13,
                     ),
-                  ],
+                  ),
                 )
               else if (todo.dueDate != null)
-                Row(
-                  children: [
-                    Icon(
-                      Icons.event,
-                      size: 14,
-                      color: Colors.blue[600],
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: Text(
+                    showTimeOnly 
+                        ? 'Time: ${formatTimeOnly(todo.dueDate!)}'
+                        : formatDateTime(todo.dueDate!),
+                    style: TextStyle(
+                      color: Colors.grey[700],
+                      fontSize: 13,
                     ),
-                    const SizedBox(width: 4),
-                    Text(
-                      formatDateTime(todo.dueDate!),
-                      style: TextStyle(
-                        color: Colors.grey[700],
-                        fontSize: 13,
-                        fontWeight: FontWeight.w400,
-                      ),
+                  ),
+                ),
+                
+              // Category tag at the bottom
+              if (todo.category != null)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: parseColor(todo.category!.color).withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    todo.category!.name.toLowerCase(),
+                    style: TextStyle(
+                      color: parseColor(todo.category!.color),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
                     ),
-                  ],
+                  ),
                 ),
             ],
           ),
