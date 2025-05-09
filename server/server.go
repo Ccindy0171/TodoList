@@ -16,6 +16,7 @@ import (
 )
 
 const defaultPort = "8080"
+const defaultHost = "0.0.0.0"
 
 func main() {
 	port := os.Getenv("PORT")
@@ -41,5 +42,6 @@ func main() {
 	http.Handle("/query", srv)
 
 	log.Printf("connect to http://localhost:%s/ for GraphQL playground", port)
-	log.Fatal(http.ListenAndServe(":"+port, nil))
+	log.Printf("Server listening on %s:%s", defaultHost, port)
+	log.Fatal(http.ListenAndServe(defaultHost+":"+port, nil))
 }

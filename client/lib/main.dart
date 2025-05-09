@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import 'pages/home_page.dart';
 import 'providers/todo_provider.dart';
 import 'providers/category_provider.dart';
+import 'providers/server_discovery_provider.dart';
+import 'services/graphql_service.dart';
 
 void main() {
   runApp(const MyApp());
@@ -14,10 +16,18 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Create GraphQLService instance to be shared
+    final graphQLService = GraphQLService();
+    
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => TodoProvider()),
         ChangeNotifierProvider(create: (_) => CategoryProvider()),
+        ChangeNotifierProvider(
+          create: (_) => ServerDiscoveryProvider(graphQLService),
+        ),
+        // Provide GraphQLService as a value
+        Provider.value(value: graphQLService),
       ],
       child: MaterialApp(
         title: 'Todo List',

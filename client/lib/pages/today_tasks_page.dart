@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 import '../providers/todo_provider.dart';
 import '../models/todo.dart';
 import '../widgets/add_task_dialog.dart';
+import '../pages/task_detail_page.dart';
+import '../pages/task_edit_page.dart';
 
 class TodayTasksPage extends StatefulWidget {
   const TodayTasksPage({super.key});
@@ -127,66 +129,82 @@ class _TodayTasksPageState extends State<TodayTasksPage> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(8),
       ),
-      child: ListTile(
-        leading: IconButton(
-          icon: Icon(
-            showAsCompleted ? Icons.check_circle : Icons.radio_button_unchecked,
-            color: showAsCompleted ? Colors.green : Colors.blue,
-          ),
-          onPressed: () {
-            // Optimistic update: add to set of completed IDs
-            setState(() {
-              if (!todo.completed) {
-                _optimisticallyCompletedIds.add(todo.id);
-              }
-            });
-            
-            // Perform the actual toggle in the backend
-            context.read<TodoProvider>().toggleTodo(todo.id).then((_) {
-              // After actual toggle, clear the optimistic state and reload data
+      child: InkWell(
+        onTap: () {
+          // Navigate to task edit page when tapping on the tile
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => TaskEditPage(task: todo),
+            ),
+          ).then((updated) {
+            if (updated == true) {
+              _loadData(); // Refresh data if task was updated
+            }
+          });
+        },
+        child: ListTile(
+          leading: InkWell(
+            onTap: () {
+              // Prevent navigation to detail page
+              // Optimistic update: add to set of completed IDs
               setState(() {
-                _optimisticallyCompletedIds.remove(todo.id);
+                if (!todo.completed) {
+                  _optimisticallyCompletedIds.add(todo.id);
+                }
               });
-              _loadData();
-            });
-          },
-        ),
-        title: Text(
-          todo.title,
-          style: TextStyle(
-            decoration: showAsCompleted ? TextDecoration.lineThrough : null,
-            color: showAsCompleted ? Colors.grey : null,
+              
+              // Perform the actual toggle in the backend
+              context.read<TodoProvider>().toggleTodo(todo.id).then((_) {
+                // After actual toggle, clear the optimistic state and reload data
+                setState(() {
+                  _optimisticallyCompletedIds.remove(todo.id);
+                });
+                _loadData();
+              });
+            },
+            child: Icon(
+              showAsCompleted ? Icons.check_circle : Icons.radio_button_unchecked,
+              color: showAsCompleted ? Colors.green : Colors.blue,
+            ),
           ),
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (todo.description != null)
-              Text(
-                todo.description!,
-                style: TextStyle(
-                  color: Colors.grey[600],
-                  decoration: showAsCompleted ? TextDecoration.lineThrough : null,
+          title: Text(
+            todo.title,
+            style: TextStyle(
+              decoration: showAsCompleted ? TextDecoration.lineThrough : null,
+              color: showAsCompleted ? Colors.grey : null,
+            ),
+          ),
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (todo.description != null)
+                Text(
+                  todo.description!,
+                  style: TextStyle(
+                    color: Colors.grey[600],
+                    decoration: showAsCompleted ? TextDecoration.lineThrough : null,
+                  ),
                 ),
-              ),
-            if (todo.dueDate != null)
-              Text(
-                '${todo.dueDate!.hour.toString().padLeft(2, '0')}:${todo.dueDate!.minute.toString().padLeft(2, '0')}',
-                style: TextStyle(
-                  color: Colors.grey[600],
-                  decoration: showAsCompleted ? TextDecoration.lineThrough : null,
+              if (todo.dueDate != null)
+                Text(
+                  '${todo.dueDate!.hour.toString().padLeft(2, '0')}:${todo.dueDate!.minute.toString().padLeft(2, '0')}',
+                  style: TextStyle(
+                    color: Colors.grey[600],
+                    decoration: showAsCompleted ? TextDecoration.lineThrough : null,
+                  ),
                 ),
-              ),
-          ],
-        ),
-        trailing: IconButton(
-          icon: const Icon(Icons.delete_outline),
-          onPressed: () {
-            context.read<TodoProvider>().deleteTodo(todo.id).then((_) {
-              // Reload after deletion
-              _loadData();
-            });
-          },
+            ],
+          ),
+          trailing: IconButton(
+            icon: const Icon(Icons.delete_outline),
+            onPressed: () {
+              context.read<TodoProvider>().deleteTodo(todo.id).then((_) {
+                // Reload after deletion
+                _loadData();
+              });
+            },
+          ),
         ),
       ),
     );

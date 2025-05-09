@@ -2,11 +2,76 @@ import 'package:graphql/client.dart';
 import '../models/todo.dart';
 import '../models/category.dart';
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http;
+import 'dart:async';
 
 class GraphQLService {
-  static const String _baseUrl = 'http://10.0.2.2:8080/query'; // for android emulator
-  // static const String _baseUrl = 'http://localhost:8080/query'; // for web
-  late GraphQLClient _client;
+  // Default URL for backward compatibility
+  static const String _defaultUrl = 'http://10.0.2.2:8080/query'; // for android emulator
+  // static const String _defaultUrl = 'http://localhost:8080/query'; // for web
+  
+  // Variables to store dynamic URL
+  String _serverUrl = _defaultUrl;
+  
+  // Initialize _client with the default URL to avoid LateInitializationError
+  GraphQLClient _client = GraphQLClient(
+    link: HttpLink(_defaultUrl),
+    cache: GraphQLCache(),
+    // Increase timeout for network operations
+    queryRequestTimeout: const Duration(seconds: 30),
+  );
+  
+  // Maximum number of retries for failed requests
+  static const int _maxRetries = 3;
+
+  String get serverUrl => _serverUrl;
+
+  // Method to change the server URL dynamically
+  Future<void> setServerUrl(String newUrl) async {
+    if (_serverUrl == newUrl) return;
+    
+    _serverUrl = newUrl;
+    
+    // Save the preference
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('graphql_server_url', newUrl);
+    
+    // Recreate the client with the new URL and increased timeout
+    final httpLink = HttpLink(_serverUrl);
+    _client = GraphQLClient(
+      link: httpLink,
+      cache: GraphQLCache(),
+      // Increase timeout for network operations
+      queryRequestTimeout: const Duration(seconds: 30),
+    );
+    
+    print('? GraphQL Service: Server URL changed to $_serverUrl');
+  }
+
+  // Generic method to handle retries for GraphQL operations
+  Future<T> _withRetry<T>(Future<T> Function() operation) async {
+    int retryCount = 0;
+    late dynamic lastError;
+    
+    while (retryCount < _maxRetries) {
+      try {
+        return await operation();
+      } catch (e) {
+        lastError = e;
+        print('? GraphQL Error (attempt ${retryCount + 1}/$_maxRetries): $e');
+        
+        // Wait before retry with exponential backoff: 1s, 2s, 4s...
+        final waitTime = Duration(seconds: 1 << retryCount);
+        await Future.delayed(waitTime);
+        
+        retryCount++;
+      }
+    }
+    
+    // If we've exhausted all retries, throw the last error
+    throw lastError;
+  }
 
   String _formatDateTime(DateTime dateTime) {
     // Format as ISO 8601 with timezone offset
@@ -32,11 +97,31 @@ class GraphQLService {
   }
 
   GraphQLService() {
-    final HttpLink httpLink = HttpLink(_baseUrl);
-    _client = GraphQLClient(
-      link: httpLink,
-      cache: GraphQLCache(),
-    );
+    // Initialize with saved URL or default
+    _initializeClient();
+  }
+  
+  Future<void> _initializeClient() async {
+    try {
+      // Try to load saved URL from SharedPreferences
+      final prefs = await SharedPreferences.getInstance();
+      final savedUrl = prefs.getString('graphql_server_url');
+      
+      if (savedUrl != null && savedUrl.isNotEmpty) {
+        _serverUrl = savedUrl;
+        
+        final httpLink = HttpLink(_serverUrl);
+        _client = GraphQLClient(
+          link: httpLink,
+          cache: GraphQLCache(),
+        );
+      }
+      
+      print('? GraphQL Service: Initialized with server URL: $_serverUrl');
+    } catch (e) {
+      print('? GraphQL Service: Error initializing client: $e');
+      // We already have a default client initialized, so we can continue
+    }
   }
 
   Future<List<Category>> getCategories() async {
@@ -167,13 +252,14 @@ class GraphQLService {
       }
     ''';
 
-    final result = await _client.query(
+    // Use the retry mechanism for the query operation
+    final result = await _withRetry(() => _client.query(
       QueryOptions(
         document: gql(query),
         variables: variables,
         fetchPolicy: FetchPolicy.networkOnly, // Always fetch from server, not cache
       ),
-    );
+    ));
 
     if (result.hasException) {
       print('? GraphQL Error: ${result.exception.toString()}');
