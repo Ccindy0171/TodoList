@@ -7,18 +7,30 @@ import 'providers/category_provider.dart';
 import 'providers/server_discovery_provider.dart';
 import 'services/graphql_service.dart';
 
-void main() {
-  runApp(const MyApp());
+void main() async {
+  // Ensure Flutter is initialized
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  // Create and initialize the GraphQLService before the app starts
+  final graphQLService = GraphQLService();
+  // Wait for initialization to complete
+  await Future.delayed(Duration(milliseconds: 500));
+  
+  // Print the server URL that will be used
+  print('? Main: Starting app with GraphQL server: ${graphQLService.serverUrl}');
+  print('? Main: Is using default URL: ${graphQLService.isUsingDefaultUrl}');
+  print('? Main: Allow default URL: ${graphQLService.allowDefaultUrl}');
+  
+  runApp(MyApp(graphQLService: graphQLService));
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  final GraphQLService graphQLService;
+  
+  const MyApp({super.key, required this.graphQLService});
 
   @override
   Widget build(BuildContext context) {
-    // Create GraphQLService instance to be shared
-    final graphQLService = GraphQLService();
-    
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => TodoProvider()),

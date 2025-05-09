@@ -5,10 +5,15 @@ import 'package:flutter/material.dart';
 import 'dart:math';
 
 class CategoryProvider with ChangeNotifier {
-  final GraphQLService _graphQLService = GraphQLService();
+  final GraphQLService _graphQLService;
   List<models.Category> _categories = [];
   bool _isLoading = false;
   String? _error;
+
+  // Constructor that accepts the GraphQLService instance
+  CategoryProvider([GraphQLService? graphQLService]) : _graphQLService = graphQLService ?? GraphQLService() {
+    print('? CategoryProvider: Initialized with server URL: ${_graphQLService.serverUrl}');
+  }
 
   // Predefined colors that can be used for categories
   static final List<String> predefinedColors = [

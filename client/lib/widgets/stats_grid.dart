@@ -7,160 +7,175 @@ import '../pages/date_range_filter_page.dart';
 import '../pages/chronological_tasks_page.dart';
 import '../models/todo.dart';
 
-class StatsGrid extends StatefulWidget {
+class StatsGrid extends StatelessWidget {
   const StatsGrid({super.key});
 
   @override
-  State<StatsGrid> createState() => _StatsGridState();
-}
-
-class _StatsGridState extends State<StatsGrid> {
-  Map<String, Future<List<Todo>>> _todoFutures = {};
-  Map<String, int> _todoCounts = {};
-  bool _isLoading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadTodoCounts();
-  }
-
-  Future<void> _loadTodoCounts() async {
-    setState(() {
-      _isLoading = true;
-    });
-
-    final todoProvider = Provider.of<TodoProvider>(context, listen: false);
-    
-    try {
-      // Load all todo counts in parallel
-      final todayTodos = await todoProvider.getTodayTodos();
-      final upcomingTodos = await todoProvider.getUpcomingTodos();
-      final allTodos = await todoProvider.getAllTodos();
-      
-      if (mounted) {
-        setState(() {
-          _todoCounts = {
-            'Today': todayTodos.length,
-            'Planned': upcomingTodos.length,
-            'All': allTodos.length,
-          };
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
-      print('Error loading todo counts: $e');
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    }
-  }
-
-  @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Row(
+    return Consumer<TodoProvider>(
+      builder: (context, todoProvider, child) {
+        final isLoading = todoProvider.isLoading;
+        final error = todoProvider.error;
+        final hasConnectivity = todoProvider.hasConnectivity;
+        
+        // Show error state with retry button if we have connectivity issues
+        if (!hasConnectivity || error != null) {
+          return Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  children: [
+                    Icon(
+                      Icons.cloud_off,
+                      size: 48,
+                      color: Colors.grey,
+                    ),
+                    SizedBox(height: 16),
+                    Text(
+                      error ?? 'Cannot connect to server',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.red[700]),
+                    ),
+                    SizedBox(height: 16),
+                    ElevatedButton.icon(
+                      onPressed: () => todoProvider.retryLoadTodos(),
+                      icon: Icon(Icons.refresh),
+                      label: Text('Retry Connection'),
+                    ),
+                    if (todoProvider.getCachedAllTodos != null && 
+                        todoProvider.getCachedAllTodos!.isNotEmpty) ...[
+                      SizedBox(height: 8),
+                      Text(
+                        'Showing cached data',
+                        style: TextStyle(
+                          fontStyle: FontStyle.italic,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              
+              // Still show grid with cached data if available
+              if (todoProvider.getCachedAllTodos != null && 
+                  todoProvider.getCachedAllTodos!.isNotEmpty) ...[
+                _buildStatsGridWithCachedData(todoProvider),
+              ],
+            ],
+          );
+        }
+        
+        // Get counts from cached data
+        final todayCount = todoProvider.getCachedTodayTodos?.length ?? 0;
+        final plannedCount = todoProvider.getCachedUpcomingTodos?.length ?? 0;
+        final allCount = todoProvider.getCachedAllTodos?.length ?? 0;
+        
+        return Column(
           children: [
-            Expanded(
-              child: _buildStatCard(
-                context,
-                'Today',
-                Icons.today,
-                Colors.blue,
-                count: _todoCounts['Today'] ?? 0,
-                isLoading: _isLoading,
-              ),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildStatCard(
+                    context,
+                    'Today',
+                    Icons.today,
+                    Colors.blue,
+                    count: todayCount,
+                    isLoading: isLoading,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: _buildStatCard(
+                    context,
+                    'Planned',
+                    Icons.calendar_month,
+                    Colors.orange,
+                    count: plannedCount,
+                    isLoading: isLoading,
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: _buildStatCard(
-                context,
-                'Planned',
-                Icons.calendar_month,
-                Colors.orange,
-                count: _todoCounts['Planned'] ?? 0,
-                isLoading: _isLoading,
-              ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildStatCard(
+                    context,
+                    'All',
+                    Icons.list_alt,
+                    Colors.green,
+                    count: allCount,
+                    isLoading: isLoading,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: _buildStatCard(
+                    context,
+                    'Completed',
+                    Icons.check_circle,
+                    Colors.purple,
+                    hasCounter: false,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const CompletedTasksPage(),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildStatCard(
+                    context,
+                    'Date Range',
+                    Icons.date_range,
+                    Colors.deepOrange,
+                    hasCounter: false,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const DateRangeFilterPage(),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: _buildStatCard(
+                    context,
+                    'Timeline',
+                    Icons.timeline,
+                    Colors.teal,
+                    hasCounter: false,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const ChronologicalTasksPage(),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
             ),
           ],
-        ),
-        const SizedBox(height: 16),
-        Row(
-          children: [
-            Expanded(
-              child: _buildStatCard(
-                context,
-                'All',
-                Icons.list_alt,
-                Colors.green,
-                count: _todoCounts['All'] ?? 0,
-                isLoading: _isLoading,
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: _buildStatCard(
-                context,
-                'Completed',
-                Icons.check_circle,
-                Colors.purple,
-                hasCounter: false,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const CompletedTasksPage(),
-                    ),
-                  );
-                },
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        Row(
-          children: [
-            Expanded(
-              child: _buildStatCard(
-                context,
-                'Date Range',
-                Icons.date_range,
-                Colors.deepOrange,
-                hasCounter: false,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const DateRangeFilterPage(),
-                    ),
-                  );
-                },
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: _buildStatCard(
-                context,
-                'Timeline',
-                Icons.timeline,
-                Colors.teal,
-                hasCounter: false,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const ChronologicalTasksPage(),
-                    ),
-                  );
-                },
-              ),
-            ),
-          ],
-        ),
-      ],
+        );
+      }
     );
   }
 
@@ -173,6 +188,7 @@ class _StatsGridState extends State<StatsGrid> {
     bool isLoading = false,
     bool hasCounter = true,
     VoidCallback? onTap,
+    bool isCached = false,
   }) {
     return GestureDetector(
       onTap: onTap ?? () {
@@ -186,10 +202,7 @@ class _StatsGridState extends State<StatsGrid> {
               type: 'stat',
             ),
           ),
-        ).then((_) {
-          // Refresh counts when returning
-          _loadTodoCounts();
-        });
+        );
       },
       child: Container(
         padding: const EdgeInsets.all(16),
@@ -198,10 +211,9 @@ class _StatsGridState extends State<StatsGrid> {
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.grey.withOpacity(0.1),
-              spreadRadius: 1,
-              blurRadius: 2,
-              offset: const Offset(0, 1),
+              color: Colors.black.withOpacity(0.05),
+              offset: const Offset(0, 2),
+              blurRadius: 5,
             ),
           ],
         ),
@@ -211,9 +223,9 @@ class _StatsGridState extends State<StatsGrid> {
             Icon(
               icon,
               color: color,
-              size: 28,
+              size: 32,
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 12),
             Text(
               title,
               style: const TextStyle(
@@ -221,29 +233,148 @@ class _StatsGridState extends State<StatsGrid> {
                 fontWeight: FontWeight.bold,
               ),
             ),
-            if (hasCounter)
-              isLoading
-                ? const SizedBox(
-                    height: 20,
-                    child: Center(
-                      child: SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                        ),
-                      ),
-                    ),
-                  )
-                : Text(
-                    '${count ?? 0} tasks',
-                    style: TextStyle(
-                      color: Colors.grey[600],
-                      fontSize: 14,
-                    ),
+            if (hasCounter) ...[
+              const SizedBox(height: 8),
+              if (isLoading)
+                const SizedBox(
+                  height: 20,
+                  width: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
                   ),
+                )
+              else
+                Text(
+                  count != null ? '$count ${count == 1 ? 'task' : 'tasks'}' : '0 tasks',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey[600],
+                  ),
+                ),
+            ],
           ],
         ),
+      ),
+    );
+  }
+
+  // Build stats grid with cached data (for offline mode)
+  Widget _buildStatsGridWithCachedData(TodoProvider todoProvider) {
+    // Get counts from cached data
+    final todayCount = todoProvider.getCachedTodayTodos?.length ?? 0;
+    final plannedCount = todoProvider.getCachedUpcomingTodos?.length ?? 0;
+    final allCount = todoProvider.getCachedAllTodos?.length ?? 0;
+    
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: _buildStatCardCached(
+                'Today',
+                Icons.today,
+                Colors.blue,
+                count: todayCount,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: _buildStatCardCached(
+                'Planned',
+                Icons.calendar_month,
+                Colors.orange,
+                count: plannedCount,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(
+              child: _buildStatCardCached(
+                'All',
+                Icons.list_alt,
+                Colors.green,
+                count: allCount,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: _buildStatCardCached(
+                'Completed',
+                Icons.check_circle,
+                Colors.purple,
+                hasCounter: false,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+  
+  // A simplified version of stat card for cached/offline mode
+  Widget _buildStatCardCached(
+    String title,
+    IconData icon,
+    Color color, {
+    int? count,
+    bool hasCounter = true,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            offset: const Offset(0, 2),
+            blurRadius: 5,
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                icon,
+                color: color,
+                size: 32,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                '(Cached)',
+                style: TextStyle(
+                  fontSize: 10,
+                  fontStyle: FontStyle.italic,
+                  color: Colors.grey[400],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          if (hasCounter) ...[
+            const SizedBox(height: 8),
+            Text(
+              count != null ? '$count ${count == 1 ? 'task' : 'tasks'}' : '0 tasks',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey[600],
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }

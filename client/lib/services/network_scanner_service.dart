@@ -121,9 +121,45 @@ class NetworkScannerService {
       
       if (_selectedServerUrl != null) {
         await prefs.setString('selected_server', _selectedServerUrl!);
+        
+        // Also save the selected server's IP to recent IPs if it's not a default URL
+        if (!_selectedServerUrl!.contains('10.0.2.2') && 
+            !_selectedServerUrl!.contains('localhost') &&
+            !_selectedServerUrl!.contains('127.0.0.1')) {
+          try {
+            // Extract IP from URL
+            final uri = Uri.parse(_selectedServerUrl!);
+            final host = uri.host;
+            
+            // Get existing IPs and add the selected one
+            final existingIPs = prefs.getStringList('recent_server_ips') ?? [];
+            if (!existingIPs.contains(host)) {
+              existingIPs.add(host);
+              await prefs.setStringList('recent_server_ips', existingIPs);
+              print('? NetworkScanner: Saved selected server IP: $host to recent IPs');
+            }
+          } catch (e) {
+            print('? NetworkScanner: Error extracting IP from URL: $e');
+          }
+        }
       }
+      
+      // Also save a list of recent server IPs for history
+      final recentIps = _discoveredServers
+          .where((s) => !s.url.contains('10.0.2.2') && !s.url.contains('localhost'))
+          .map((s) => s.address)
+          .toSet()
+          .toList();
+      
+      // Merge with existing recent IPs
+      final existingIPs = prefs.getStringList('recent_server_ips') ?? [];
+      final combinedIPs = {...existingIPs, ...recentIps}.toList();
+      
+      await prefs.setStringList('recent_server_ips', combinedIPs);
+      
+      print('? NetworkScanner: Saved ${_discoveredServers.length} servers and ${combinedIPs.length} recent IPs');
     } catch (e) {
-      print('Error saving servers: $e');
+      print('? NetworkScanner: Error saving servers: $e');
     }
   }
 
@@ -139,14 +175,27 @@ class NetworkScannerService {
   // Manual entry of a server
   Future<bool> addManualServer(String ipAddress, int port) async {
     final url = 'http://$ipAddress:$port/query';
-    final verified = await _verifyGraphQLServer(url);
     
-    if (verified) {
-      _addDiscoveredServer(ipAddress, port, verified);
+    try {
+      final verified = await _verifyGraphQLServer(url);
+      
+      if (verified) {
+        _addDiscoveredServer(ipAddress, port, verified);
+        return true;
+      } else {
+        // Even if verification fails, still add the server but mark as unverified
+        // This allows users to add servers that might be temporarily offline
+        // or have non-standard GraphQL setups
+        print('? NetworkScanner: Server verification failed, adding as unverified');
+        _addDiscoveredServer(ipAddress, port, false);
+        return true;
+      }
+    } catch (e) {
+      print('? NetworkScanner: Error adding manual server: $e');
+      // Still add the server even on connection error, just mark it as unverified
+      _addDiscoveredServer(ipAddress, port, false);
       return true;
     }
-    
-    return false;
   }
 
   // Get the local IP address
@@ -226,28 +275,42 @@ class NetworkScannerService {
         body: '{"query": "${_introspectionQuery.replaceAll('\n', ' ').replaceAll('"', '\\"')}"}',
       ).timeout(const Duration(seconds: 5));
 
-      if (response.statusCode == 200) {
-        // Check for expected GraphQL response structure
-        final body = response.body;
-        
-        // Check if it contains the schema information
-        final hasSchema = body.contains('"__schema"') && 
-                           body.contains('"queryType"');
-        
-        // Check for specific queries we need
-        final hasTodosQuery = body.contains('"todos"') || 
-                              body.contains('"name":"todos"');
-        
-        // Check for specific mutations we need
-        final hasRequiredMutations = body.contains('"createTodo"') || 
-                                     body.contains('"name":"createTodo"');
-        
-        return hasSchema && (hasTodosQuery || hasRequiredMutations);
+      // For GraphQL servers, we care more about the response structure
+      // than the HTTP status code - some servers return 400 for GET
+      // but still work fine with POST requests
+      if (response.statusCode >= 200 && response.statusCode < 500) {
+        try {
+          // Check for expected GraphQL response structure
+          final body = response.body;
+          final jsonResponse = jsonDecode(body);
+          
+          // If we have data or a proper schema, consider it a success
+          final hasData = jsonResponse.containsKey('data');
+          
+          if (hasData) {
+            // Check if it contains the schema information
+            final hasSchema = body.contains('"__schema"') && 
+                              body.contains('"queryType"');
+            
+            // Check for specific queries we need
+            final hasTodosQuery = body.contains('"todos"') || 
+                                  body.contains('"name":"todos"');
+            
+            // Check for specific mutations we need
+            final hasRequiredMutations = body.contains('"createTodo"') || 
+                                         body.contains('"name":"createTodo"');
+            
+            return hasSchema || hasTodosQuery || hasRequiredMutations;
+          }
+        } catch (e) {
+          print('? NetworkScanner: Error parsing GraphQL response: $e');
+          return false;
+        }
       }
       
       return false;
     } catch (e) {
-      print('Error verifying GraphQL server at $url: $e');
+      print('? NetworkScanner: Error verifying GraphQL server at $url: $e');
       return false;
     }
   }
@@ -318,5 +381,23 @@ class NetworkScannerService {
   // Clean up resources
   void dispose() {
     _serversStreamController.close();
+  }
+
+  // Get list of recent server IPs
+  Future<List<String>> getRecentServerIPs() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final recentIps = prefs.getStringList('recent_server_ips') ?? [];
+      
+      // Filter to exclude localhost and emulator addresses
+      return recentIps.where((ip) => 
+        !ip.contains('10.0.2.2') && 
+        !ip.contains('localhost') &&
+        !ip.contains('127.0.0.1')
+      ).toList();
+    } catch (e) {
+      print('? NetworkScanner: Error getting recent IPs: $e');
+      return [];
+    }
   }
 }

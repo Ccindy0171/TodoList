@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'dart:async';
+import 'dart:convert';
 
 class GraphQLService {
   // Default URL for backward compatibility
@@ -13,6 +14,8 @@ class GraphQLService {
   
   // Variables to store dynamic URL
   String _serverUrl = _defaultUrl;
+  bool _isUsingDefaultUrl = true;
+  bool _allowDefaultUrl = false;
   
   // Initialize _client with the default URL to avoid LateInitializationError
   GraphQLClient _client = GraphQLClient(
@@ -26,12 +29,16 @@ class GraphQLService {
   static const int _maxRetries = 3;
 
   String get serverUrl => _serverUrl;
-
+  bool get isUsingDefaultUrl => _isUsingDefaultUrl;
+  bool get allowDefaultUrl => _allowDefaultUrl;
+  
   // Method to change the server URL dynamically
   Future<void> setServerUrl(String newUrl) async {
     if (_serverUrl == newUrl) return;
     
+    print('? GraphQL Service: Changing server URL from $_serverUrl to $newUrl');
     _serverUrl = newUrl;
+    _isUsingDefaultUrl = (newUrl == _defaultUrl);
     
     // Save the preference
     final prefs = await SharedPreferences.getInstance();
@@ -46,13 +53,36 @@ class GraphQLService {
       queryRequestTimeout: const Duration(seconds: 30),
     );
     
-    print('? GraphQL Service: Server URL changed to $_serverUrl');
+    print('? GraphQL Service: Server URL changed to $_serverUrl (using default: $_isUsingDefaultUrl)');
+    
+    // Verify the change was applied
+    final savedUrl = prefs.getString('graphql_server_url');
+    if (savedUrl != newUrl) {
+      print('? GraphQL Service: WARNING - Saved URL ($savedUrl) doesn\'t match requested URL ($newUrl)');
+    } else {
+      print('? GraphQL Service: Successfully verified URL change to $newUrl');
+    }
+  }
+
+  // Set whether to allow using the default URL
+  Future<void> setAllowDefaultUrl(bool allow) async {
+    _allowDefaultUrl = allow;
+    
+    // Save the preference
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('allow_default_url', allow);
+    
+    print('? GraphQL Service: Default URL allowed: $_allowDefaultUrl');
   }
 
   // Generic method to handle retries for GraphQL operations
   Future<T> _withRetry<T>(Future<T> Function() operation) async {
     int retryCount = 0;
     late dynamic lastError;
+    
+    // Initial delay in milliseconds
+    int delayMs = 100; 
+    const int maxDelayMs = 10000; // Maximum delay of 10 seconds
     
     while (retryCount < _maxRetries) {
       try {
@@ -61,9 +91,14 @@ class GraphQLService {
         lastError = e;
         print('? GraphQL Error (attempt ${retryCount + 1}/$_maxRetries): $e');
         
-        // Wait before retry with exponential backoff: 1s, 2s, 4s...
-        final waitTime = Duration(seconds: 1 << retryCount);
+        // Wait before retry with exponential backoff
+        // Start with very short delays and increase exponentially
+        final waitTime = Duration(milliseconds: delayMs);
+        print('? Waiting ${waitTime.inMilliseconds}ms before retry ${retryCount + 1}');
         await Future.delayed(waitTime);
+        
+        // Increase delay for next retry (exponential backoff with jitter)
+        delayMs = (delayMs * 2).clamp(0, maxDelayMs);
         
         retryCount++;
       }
@@ -71,6 +106,61 @@ class GraphQLService {
     
     // If we've exhausted all retries, throw the last error
     throw lastError;
+  }
+
+  // Simple connectivity check method
+  Future<bool> checkConnectivity() async {
+    print('? GraphQL Service: Checking connectivity to $_serverUrl');
+    
+    try {
+      // First try a simple HTTP request to check basic network connectivity
+      try {
+        final httpResponse = await http.get(
+          Uri.parse(_serverUrl),
+        ).timeout(const Duration(seconds: 5));
+        
+        print('? GraphQL Service: HTTP GET status: ${httpResponse.statusCode}');
+      } catch (e) {
+        print('? GraphQL Service: HTTP GET failed: $e');
+        // Continue checking GraphQL even if HTTP fails
+        // Some GraphQL servers don't support GET requests
+      }
+      
+      // Use a very simple GraphQL query to check connectivity
+      final response = await http.post(
+        Uri.parse(_serverUrl),
+        headers: {'Content-Type': 'application/json'},
+        body: '{"query":"{__typename}"}',
+      ).timeout(const Duration(seconds: 5));
+      
+      if (response.statusCode == 200) {
+        print('? GraphQL Service: Connectivity check successful (200 OK)');
+        try {
+          // Try to parse the response to ensure it's valid JSON
+          final jsonResponse = jsonDecode(response.body);
+          print('? GraphQL Service: Response: $jsonResponse');
+          return true;
+        } catch (e) {
+          print('? GraphQL Service: Invalid JSON response: $e');
+          return false;
+        }
+      } else {
+        print('? GraphQL Service: Connectivity check failed with status: ${response.statusCode}');
+        print('? GraphQL Service: Response body: ${response.body}');
+        return false;
+      }
+    } catch (e) {
+      print('? GraphQL Service: Connectivity check failed: $e');
+      
+      // Provide more details for common connection errors
+      if (e.toString().contains('SocketException')) {
+        print('? GraphQL Service: Network error - Server might be unreachable');
+      } else if (e.toString().contains('TimeoutException')) {
+        print('? GraphQL Service: Timeout - Server is too slow to respond');
+      }
+      
+      return false;
+    }
   }
 
   String _formatDateTime(DateTime dateTime) {
@@ -107,20 +197,57 @@ class GraphQLService {
       final prefs = await SharedPreferences.getInstance();
       final savedUrl = prefs.getString('graphql_server_url');
       
+      // Load saved allowDefaultUrl preference
+      _allowDefaultUrl = prefs.getBool('allow_default_url') ?? false;
+      
       if (savedUrl != null && savedUrl.isNotEmpty) {
-        _serverUrl = savedUrl;
+        print('? GraphQL Service: Found saved server URL: $savedUrl');
         
+        // Update internal variables
+        _serverUrl = savedUrl;
+        _isUsingDefaultUrl = (savedUrl == _defaultUrl);
+        
+        // Create a new client with the saved URL
         final httpLink = HttpLink(_serverUrl);
         _client = GraphQLClient(
           link: httpLink,
           cache: GraphQLCache(),
+          queryRequestTimeout: const Duration(seconds: 30),
         );
+        
+        print('? GraphQL Service: Initialized with saved server URL: $_serverUrl');
+        
+        // Verify the client is using the correct URL
+        if (_client.link is HttpLink) {
+          final link = _client.link as HttpLink;
+          final uri = link.uri.toString();
+          print('? GraphQL Service: Client URI: $uri');
+          
+          if (uri != _serverUrl) {
+            print('? GraphQL Service: WARNING - URL mismatch, recreating client');
+            // Force recreation of client with correct URL
+            _client = GraphQLClient(
+              link: HttpLink(_serverUrl),
+              cache: GraphQLCache(),
+              queryRequestTimeout: const Duration(seconds: 30),
+            );
+          }
+        }
+      } else {
+        print('? GraphQL Service: No saved server URL found, using default: $_defaultUrl');
+        // By default, don't allow using the default URL without explicit permission
+        _allowDefaultUrl = false;
+        await prefs.setBool('allow_default_url', false);
       }
       
-      print('? GraphQL Service: Initialized with server URL: $_serverUrl');
+      print('? GraphQL Service: Initialized with server URL: $_serverUrl (using default: $_isUsingDefaultUrl, allow default: $_allowDefaultUrl)');
     } catch (e) {
       print('? GraphQL Service: Error initializing client: $e');
       // We already have a default client initialized, so we can continue
+      // But make sure we don't allow using default URL without permission
+      _allowDefaultUrl = false;
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('allow_default_url', false);
     }
   }
 
@@ -252,29 +379,57 @@ class GraphQLService {
       }
     ''';
 
-    // Use the retry mechanism for the query operation
-    final result = await _withRetry(() => _client.query(
-      QueryOptions(
-        document: gql(query),
-        variables: variables,
-        fetchPolicy: FetchPolicy.networkOnly, // Always fetch from server, not cache
-      ),
-    ));
+    try {
+      print('? GraphQL: Sending todo query to server: $_serverUrl');
+      
+      // Use the retry mechanism for the query operation
+      final result = await _withRetry(() => _client.query(
+        QueryOptions(
+          document: gql(query),
+          variables: variables,
+          fetchPolicy: FetchPolicy.networkOnly, // Always fetch from server, not cache
+        ),
+      ));
 
-    if (result.hasException) {
-      print('? GraphQL Error: ${result.exception.toString()}');
-      throw Exception(result.exception.toString());
+      if (result.hasException) {
+        print('? GraphQL Error: ${result.exception.toString()}');
+        
+        // Provide more detailed error information based on exception type
+        if (result.exception is OperationException) {
+          final opException = result.exception as OperationException;
+          
+          if (opException.linkException != null) {
+            print('? GraphQL Link Error: ${opException.linkException.toString()}');
+            if (opException.linkException.toString().contains('Failed host lookup')) {
+              print('? GraphQL: DNS resolution failed - check network connection and server URL');
+            }
+          }
+          
+          if (opException.graphqlErrors.isNotEmpty) {
+            for (var error in opException.graphqlErrors) {
+              print('? GraphQL Error: ${error.message}');
+              print('? GraphQL Error Location: ${error.locations}');
+              print('? GraphQL Error Extensions: ${error.extensions}');
+            }
+          }
+        }
+        
+        throw Exception(result.exception.toString());
+      }
+
+      final List<dynamic> todosJson = result.data?['todos'] ?? [];
+      final todos = todosJson.map((json) => Todo.fromJson(json)).toList();
+      
+      print('? GraphQL Response: ${todos.length} todos received (completed: $completed)');
+      todos.forEach((todo) {
+        print('  ? Todo: ${todo.id} - ${todo.title} - completed: ${todo.completed}');
+      });
+      
+      return todos;
+    } catch (e) {
+      print('? GraphQL getTodos ERROR: $e');
+      throw e; // Rethrow to be caught by the error handlers higher up
     }
-
-    final List<dynamic> todosJson = result.data?['todos'] ?? [];
-    final todos = todosJson.map((json) => Todo.fromJson(json)).toList();
-    
-    print('? GraphQL Response: ${todos.length} todos received (completed: $completed)');
-    todos.forEach((todo) {
-      print('  ? Todo: ${todo.id} - ${todo.title} - completed: ${todo.completed}');
-    });
-    
-    return todos;
   }
 
   Future<Todo> createTodo({

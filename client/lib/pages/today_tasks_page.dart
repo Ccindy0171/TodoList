@@ -15,7 +15,7 @@ class TodayTasksPage extends StatefulWidget {
 
 class _TodayTasksPageState extends State<TodayTasksPage> {
   List<Todo> _todos = [];
-  bool _isLoading = false;
+  bool _isLoading = true;
   String? _error;
   
   // List of temporarily completed todos (for optimistic UI updates)
@@ -37,7 +37,22 @@ class _TodayTasksPageState extends State<TodayTasksPage> {
     });
 
     try {
-      final todos = await context.read<TodoProvider>().getTodayTodos();
+      final todoProvider = context.read<TodoProvider>();
+      
+      // If provider is already loading data, wait for it to complete
+      if (todoProvider.isLoading) {
+        // Wait for the provider to finish loading
+        while (todoProvider.isLoading && mounted) {
+          await Future.delayed(const Duration(milliseconds: 100));
+        }
+        
+        // Check if we're still mounted after waiting
+        if (!mounted) return;
+      }
+      
+      // Get the todos from the provider
+      final todos = await todoProvider.getTodayTodos();
+      
       if (mounted) {
         setState(() {
           _todos = todos;
@@ -72,6 +87,11 @@ class _TodayTasksPageState extends State<TodayTasksPage> {
         title: const Text('Today'),
         actions: [
           IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _loadData,
+            tooltip: 'Refresh',
+          ),
+          IconButton(
             icon: const Icon(Icons.add),
             onPressed: () {
               showDialog(
@@ -87,11 +107,43 @@ class _TodayTasksPageState extends State<TodayTasksPage> {
         ],
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 16),
+                  Text('Loading today\'s tasks...'),
+                ],
+              ),
+            )
           : _error != null
-              ? Center(child: Text('Error: $_error'))
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.error_outline, color: Colors.red, size: 48),
+                      const SizedBox(height: 16),
+                      Text('Error: $_error'),
+                      const SizedBox(height: 16),
+                      ElevatedButton(
+                        onPressed: _loadData,
+                        child: const Text('Try Again'),
+                      ),
+                    ],
+                  ),
+                )
               : _todos.isEmpty
-                  ? const Center(child: Text('No tasks for today'))
+                  ? const Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.check, size: 48, color: Colors.green),
+                          SizedBox(height: 16),
+                          Text('No tasks for today'),
+                        ],
+                      ),
+                    )
                   : ListView.builder(
                       padding: const EdgeInsets.all(16.0),
                       itemCount: _todos.length,

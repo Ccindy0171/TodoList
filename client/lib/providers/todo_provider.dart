@@ -4,12 +4,60 @@ import '../services/graphql_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class TodoProvider with ChangeNotifier {
-  final GraphQLService _graphQLService = GraphQLService();
+  final GraphQLService _graphQLService;
   bool _isLoading = false;
   String? _error;
+  
+  // Cache for todo lists to prevent repeated network requests
+  List<Todo>? _cachedTodayTodos;
+  List<Todo>? _cachedUpcomingTodos;
+  List<Todo>? _cachedAllTodos;
+  List<Todo>? _cachedCompletedTodayTodos;
+  List<Todo>? _cachedGeneralTodos;
+  List<Todo>? _cachedRecentlyUpdatedTasks;
+  
+  // Status tracking for connectivity
+  bool _hasConnectivity = true;
+  int _failedAttempts = 0;
+  bool _needsServerConfig = false;
+
+  // Constructor that accepts the GraphQLService instance
+  TodoProvider([GraphQLService? graphQLService]) : _graphQLService = graphQLService ?? GraphQLService() {
+    print('? TodoProvider: Initialized with server URL: ${_graphQLService.serverUrl}');
+  }
 
   bool get isLoading => _isLoading;
   String? get error => _error;
+  
+  // Getters for cached data
+  List<Todo>? get getCachedTodayTodos => _cachedTodayTodos;
+  List<Todo>? get getCachedUpcomingTodos => _cachedUpcomingTodos;
+  List<Todo>? get getCachedAllTodos => _cachedAllTodos;
+  List<Todo>? get getCachedCompletedTodayTodos => _cachedCompletedTodayTodos;
+  List<Todo>? get getCachedGeneralTodos => _cachedGeneralTodos;
+  List<Todo>? get getCachedRecentlyUpdatedTasks => _cachedRecentlyUpdatedTasks;
+  
+  // Connectivity status
+  bool get hasConnectivity => _hasConnectivity;
+  int get failedAttempts => _failedAttempts;
+  bool get needsServerConfig => _needsServerConfig;
+  
+  // Get cached todos for a specific category
+  List<Todo>? getCategoryTodos(String categoryId) {
+    // For the General category, return general todos (no category)
+    if (categoryId == 'General') {
+      return _cachedGeneralTodos;
+    }
+    
+    // For other categories, filter the cached all todos by category ID
+    if (_cachedAllTodos != null) {
+      return _cachedAllTodos!.where((todo) => 
+        todo.category != null && todo.category!.id == categoryId
+      ).toList();
+    }
+    
+    return null;
+  }
 
   Future<List<Todo>> getTodayTodos() async {
     print('? TodoProvider: getTodayTodos() - Fetching non-completed tasks for today');
@@ -17,11 +65,16 @@ class TodoProvider with ChangeNotifier {
     final startOfDay = DateTime(now.year, now.month, now.day);
     final endOfDay = startOfDay.add(const Duration(days: 1));
     
-    return await _graphQLService.getTodos(
+    final todos = await _graphQLService.getTodos(
       completed: false, // Explicitly request non-completed tasks
       startDate: startOfDay,
       endDate: endOfDay,
     );
+    
+    // Update cache
+    _cachedTodayTodos = todos;
+    
+    return todos;
   }
 
   Future<List<Todo>> getUpcomingTodos() async {
@@ -29,17 +82,27 @@ class TodoProvider with ChangeNotifier {
     final now = DateTime.now();
     final startOfTomorrow = DateTime(now.year, now.month, now.day).add(const Duration(days: 1));
     
-    return await _graphQLService.getTodos(
+    final todos = await _graphQLService.getTodos(
       completed: false, // Explicitly request non-completed tasks
       startDate: startOfTomorrow,
     );
+    
+    // Update cache
+    _cachedUpcomingTodos = todos;
+    
+    return todos;
   }
 
   Future<List<Todo>> getAllTodos() async {
     print('? TodoProvider: getAllTodos() - Fetching all non-completed tasks');
-    return await _graphQLService.getTodos(
+    final todos = await _graphQLService.getTodos(
       completed: false, // Explicitly request non-completed tasks
     );
+    
+    // Update cache
+    _cachedAllTodos = todos;
+    
+    return todos;
   }
 
   Future<List<Todo>> getCompletedTodayTodos() async {
@@ -48,11 +111,16 @@ class TodoProvider with ChangeNotifier {
     final startOfDay = DateTime(now.year, now.month, now.day);
     final endOfDay = startOfDay.add(const Duration(days: 1));
     
-    return await _graphQLService.getTodos(
+    final todos = await _graphQLService.getTodos(
       completed: true, // Explicitly request completed tasks
       updatedAfter  : startOfDay,
       updatedBefore: endOfDay,
     );
+    
+    // Update cache
+    _cachedCompletedTodayTodos = todos;
+    
+    return todos;
   }
 
   Future<List<Todo>> getGeneralTodos() async {
@@ -63,6 +131,10 @@ class TodoProvider with ChangeNotifier {
         categoryId: 'none', // Special value to indicate no category
       );
       print('? TodoProvider: getGeneralTodos() - Successfully fetched ${todos.length} tasks');
+      
+      // Update cache
+      _cachedGeneralTodos = todos;
+      
       return todos;
     } catch (e) {
       print('? TodoProvider: getGeneralTodos() - Error: $e');
@@ -282,21 +354,114 @@ class TodoProvider with ChangeNotifier {
     await prefs.setInt('lastSync', DateTime.now().millisecondsSinceEpoch);
   }
 
-  Future<void> loadTodos() async {
-    print('? TodoProvider: loadTodos() - Started refreshing all todo lists');
+  // Helper method to determine if the app has server configuration ready
+  bool get hasValidServerConfiguration {
+    // Valid configurations:
+    // 1. Using a non-default server
+    // 2. Using the default server with explicit permission
+    return !_graphQLService.isUsingDefaultUrl || _graphQLService.allowDefaultUrl;
+  }
+
+  Future<void> loadTodos({bool forceDefaultConnection = false}) async {
+    print('? TodoProvider: loadTodos(forceDefault: $forceDefaultConnection) - Started refreshing all todo lists');
     _isLoading = true;
+    _error = null;
     notifyListeners();
+    
     try {
-      // Keep this method as is since it's used for initial load and manual refresh
-      await getTodayTodos();
-      await getUpcomingTodos();
-      await getAllTodos();
-      await getCompletedTodayTodos();
-      await getGeneralTodos();
-      await getReminders();
-      await getFuturePlans();
-      await getRecentlyUpdatedTasks();
-      print('? TodoProvider: loadTodos() - All todo lists refreshed successfully');
+      // If forceDefaultConnection is true, remember this preference for future refreshes
+      if (forceDefaultConnection) {
+        await _graphQLService.setAllowDefaultUrl(true);
+        print('? TodoProvider: Remembered preference to use default URL for future refreshes');
+      }
+      
+      print('? TodoProvider: Using server URL: ${_graphQLService.serverUrl}');
+      
+      // Check if we need to show configuration screen
+      if (!hasValidServerConfiguration && !forceDefaultConnection) {
+        _needsServerConfig = true;
+        _error = 'Server URL not configured';
+        print('? TodoProvider: loadTodos() - No valid server configuration, configuration needed');
+        _isLoading = false;
+        notifyListeners();
+        return;
+      }
+      
+      // Reset server config flag
+      _needsServerConfig = false;
+      
+      // Check connectivity first
+      final hasConnectivity = await _graphQLService.checkConnectivity();
+      print('? TodoProvider: Connectivity check: ${hasConnectivity ? 'SUCCESS' : 'FAILED'}');
+      
+      if (!hasConnectivity) {
+        _failedAttempts++;
+        _hasConnectivity = false;
+        
+        // Provide a more detailed error message
+        String serverType = _graphQLService.isUsingDefaultUrl ? "default" : "configured";
+        _error = 'Cannot connect to $serverType server. Please check your connection and server status.';
+        
+        print('? TodoProvider: loadTodos() - Connectivity check failed ($_failedAttempts attempts)');
+        
+        // If we have cached data, we can still show it
+        if (_cachedAllTodos != null && _cachedAllTodos!.isNotEmpty) {
+          print('? TodoProvider: Using cached data due to connectivity issues');
+          _isLoading = false;
+          notifyListeners();
+          return;
+        }
+        
+        _isLoading = false;
+        notifyListeners();
+        return;
+      }
+      
+      // Reset connectivity status on successful connection
+      _hasConnectivity = true;
+      _failedAttempts = 0;
+      
+      // Load all data in parallel for maximum efficiency
+      print('? TodoProvider: Starting parallel data load...');
+      try {
+        final futures = await Future.wait([
+          getTodayTodos().catchError((e) {
+            print('? TodoProvider: Error loading today todos: $e');
+            return <Todo>[];
+          }),
+          getUpcomingTodos().catchError((e) {
+            print('? TodoProvider: Error loading upcoming todos: $e');
+            return <Todo>[];
+          }),
+          getAllTodos().catchError((e) {
+            print('? TodoProvider: Error loading all todos: $e');
+            return <Todo>[];
+          }),
+          getCompletedTodayTodos().catchError((e) {
+            print('? TodoProvider: Error loading completed todos: $e');
+            return <Todo>[];
+          }),
+          getGeneralTodos().catchError((e) {
+            print('? TodoProvider: Error loading general todos: $e');
+            return <Todo>[];
+          }),
+          getRecentlyUpdatedTasks().catchError((e) {
+            print('? TodoProvider: Error loading recently updated tasks: $e');
+            return <Todo>[];
+          }),
+        ], eagerError: false);
+        
+        print('? TodoProvider: Parallel data load completed with ${futures.length} results');
+        _error = null;
+      } catch (e) {
+        print('? TodoProvider: Error in parallel data load: $e');
+        _error = 'Error loading todos: ${e.toString()}';
+      }
+      
+      // If we got here without errors, consider it a success even if some individual queries failed
+      if (_error == null) {
+        print('? TodoProvider: loadTodos() - All or some todo lists refreshed successfully');
+      }
     } catch (e) {
       _error = e.toString();
       print('? TodoProvider: loadTodos() - Error: $_error');
@@ -305,6 +470,14 @@ class TodoProvider with ChangeNotifier {
       notifyListeners();
       print('? TodoProvider: notifyListeners() - UI update triggered');
     }
+  }
+  
+  // Retry loading data with exponential backoff
+  Future<void> retryLoadTodos() async {
+    if (_isLoading) return; // Prevent multiple retries at once
+    
+    print('? TodoProvider: retryLoadTodos() - Retrying data load');
+    await loadTodos();
   }
 
   Future<List<Todo>> getTasksUpdatedBetween(DateTime start, DateTime end) async {
@@ -331,6 +504,10 @@ class TodoProvider with ChangeNotifier {
         updatedAfter: oneDayAgo,
       );
       print('? TodoProvider: getRecentlyUpdatedTasks() - Successfully fetched ${todos.length} tasks');
+      
+      // Update cache
+      _cachedRecentlyUpdatedTasks = todos;
+      
       return todos;
     } catch (e) {
       print('? TodoProvider: getRecentlyUpdatedTasks() - Error: $e');
@@ -436,5 +613,13 @@ class TodoProvider with ChangeNotifier {
       _isLoading = false;
       notifyListeners();
     }
+  }
+
+  // Clear any error state
+  void clearError() {
+    _error = null;
+    _needsServerConfig = false;
+    notifyListeners();
+    print('? TodoProvider: clearError() - Error state has been reset');
   }
 } 

@@ -13,6 +13,10 @@ class ServerDiscoveryProvider with ChangeNotifier {
   ServerDiscoveryProvider(this._graphQLService) {
     // Initialize with any previously selected server
     _initializeSelectedServer();
+    // Set up listener for server changes
+    _networkScanner.serversStream.listen((_) {
+      notifyListeners();
+    });
   }
 
   // Getters
@@ -20,12 +24,34 @@ class ServerDiscoveryProvider with ChangeNotifier {
   bool get isScanning => _isScanning;
   String? get error => _error;
   String? get selectedServerUrl => _networkScanner.selectedServerUrl;
+  Stream<List<GraphQLServerInfo>> get serversStream => _networkScanner.serversStream;
 
   // Initialize with the previously selected server
   Future<void> _initializeSelectedServer() async {
-    final selectedUrl = _networkScanner.selectedServerUrl;
-    if (selectedUrl != null) {
-      await _graphQLService.setServerUrl(selectedUrl);
+    try {
+      final selectedUrl = _networkScanner.selectedServerUrl;
+      if (selectedUrl != null) {
+        print('? ServerDiscoveryProvider: Initializing with previously selected server: $selectedUrl');
+        
+        // Ensure the GraphQLService uses this URL
+        await _graphQLService.setServerUrl(selectedUrl);
+        
+        // Verify the URL was set correctly
+        if (_graphQLService.serverUrl != selectedUrl) {
+          print('? ServerDiscoveryProvider: ERROR - Failed to set server URL');
+          print('?   Expected: $selectedUrl');
+          print('?   Actual: ${_graphQLService.serverUrl}');
+          
+          // Try again with a different approach
+          await _graphQLService.setServerUrl(selectedUrl);
+        } else {
+          print('? ServerDiscoveryProvider: Successfully set server URL');
+        }
+      } else {
+        print('? ServerDiscoveryProvider: No previously selected server found');
+      }
+    } catch (e) {
+      print('? ServerDiscoveryProvider: Error initializing selected server: $e');
     }
   }
 
@@ -65,11 +91,42 @@ class ServerDiscoveryProvider with ChangeNotifier {
   // Select a server
   Future<void> selectServer(String serverUrl) async {
     try {
+      print('? ServerDiscoveryProvider: Selecting server: $serverUrl');
+      
+      // First update the network scanner's selection
       await _networkScanner.selectServer(serverUrl);
+      
+      // Then update the GraphQL service with the new URL
+      // This is the critical step that was possibly failing
       await _graphQLService.setServerUrl(serverUrl);
+      
+      // When a server is explicitly selected, make sure we don't prompt for config
+      // and don't use default URL (respect this explicit choice)
+      if (_graphQLService.isUsingDefaultUrl) {
+        // If it's the default URL, allow using it since it was explicitly selected
+        await _graphQLService.setAllowDefaultUrl(true);
+        print('? ServerDiscoveryProvider: Using default URL with explicit permission');
+      } else {
+        // For non-default URLs, make sure we don't show config screen
+        // by setting allowDefaultUrl to false (meaning we have a configured server)
+        await _graphQLService.setAllowDefaultUrl(false);
+        print('? ServerDiscoveryProvider: Using non-default URL: $serverUrl');
+      }
+      
+      // Verify the GraphQL service has the expected URL
+      if (_graphQLService.serverUrl != serverUrl) {
+        print('? ServerDiscoveryProvider: WARNING - GraphQLService URL mismatch!');
+        print('?   Expected: $serverUrl');
+        print('?   Actual: ${_graphQLService.serverUrl}');
+        
+        // Try setting it one more time
+        await _graphQLService.setServerUrl(serverUrl);
+      }
+      
       notifyListeners();
     } catch (e) {
       _error = e.toString();
+      print('? ServerDiscoveryProvider: Error selecting server: $_error');
       notifyListeners();
     }
   }
@@ -94,6 +151,11 @@ class ServerDiscoveryProvider with ChangeNotifier {
       _error = e.toString();
       notifyListeners();
     }
+  }
+
+  // Get recent server IPs
+  Future<List<String>> getRecentServerIPs() async {
+    return await _networkScanner.getRecentServerIPs();
   }
 
   @override
