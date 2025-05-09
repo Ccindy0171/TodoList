@@ -39,6 +39,21 @@ class Todo {
       }
     }
 
+    // Parse dates while preserving the local time
+    DateTime? parseDueDate(String? dateStr) {
+      if (dateStr == null) return null;
+      try {
+        // Parse the date but preserve the local time intention
+        // This ensures times like 23:59 don't become 15:59
+        final DateTime parsed = DateTime.parse(dateStr);
+        // Apply the timezone offset to get back to local time
+        return parsed.toLocal();
+      } catch (e) {
+        print('Error parsing dueDate: $e');
+        return null;
+      }
+    }
+
     // Handle potentially missing or null fields
     return Todo(
       id: json['id'] as String,
@@ -46,11 +61,11 @@ class Todo {
       description: json['description'] as String?,
       completed: json['completed'] as bool? ?? false,
       category: json['category'] != null ? Category.fromJson(json['category'] as Map<String, dynamic>) : null,
-      dueDate: json['dueDate'] != null ? DateTime.parse(json['dueDate'] as String) : null,
+      dueDate: json['dueDate'] != null ? parseDueDate(json['dueDate'] as String) : null,
       location: json['location'] as String?,
       priority: json['priority'] as int?,
       tags: tags,
-      updatedAt: json['updatedAt'] != null ? DateTime.parse(json['updatedAt'] as String) : DateTime.now(),
+      updatedAt: json['updatedAt'] != null ? DateTime.parse(json['updatedAt'] as String).toLocal() : DateTime.now(),
       createdAt: null,
     );
   }
@@ -62,12 +77,12 @@ class Todo {
       'description': description,
       'completed': completed,
       'category': category?.toJson(),
-      'dueDate': dueDate?.toUtc().toIso8601String(),
+      'dueDate': dueDate?.toIso8601String(),
       'location': location,
       'priority': priority,
       'tags': tags,
-      'updatedAt': updatedAt.toUtc().toIso8601String(),
-      if (createdAt != null) 'createdAt': createdAt!.toUtc().toIso8601String(),
+      'updatedAt': updatedAt.toIso8601String(),
+      if (createdAt != null) 'createdAt': createdAt!.toIso8601String(),
     };
   }
 

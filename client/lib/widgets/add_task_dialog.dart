@@ -23,6 +23,7 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
+  final _locationController = TextEditingController();
   final _newCategoryController = TextEditingController();
   DateTime? _selectedDate;
   TimeOfDay? _selectedTime;
@@ -69,6 +70,7 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
   void dispose() {
     _titleController.dispose();
     _descriptionController.dispose();
+    _locationController.dispose();
     _newCategoryController.dispose();
     super.dispose();
   }
@@ -170,6 +172,7 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
         description: _descriptionController.text.isEmpty ? null : _descriptionController.text,
         categoryId: categoryId,
         dueDate: dueDate,
+        location: _locationController.text.isEmpty ? null : _locationController.text,
       ).then((_) {
         Navigator.of(context).pop(true); // Return true to indicate a task was created
       });
@@ -207,6 +210,15 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
                   border: OutlineInputBorder(),
                 ),
                 maxLines: 3,
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _locationController,
+                decoration: const InputDecoration(
+                  labelText: 'Location (optional)',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.location_on_outlined),
+                ),
               ),
               const SizedBox(height: 16),
               Consumer<CategoryProvider>(

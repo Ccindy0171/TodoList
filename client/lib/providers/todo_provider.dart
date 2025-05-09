@@ -377,4 +377,64 @@ class TodoProvider with ChangeNotifier {
         
     return todos;
   }
+
+  Future<void> updateTodo({
+    required String id,
+    required String title,
+    String? description,
+    String? categoryId,
+    required DateTime dueDate,
+    String? location,
+    int? priority,
+    List<String>? tags,
+  }) async {
+    print('? TodoProvider: updateTodo(id: $id, title: $title) - Started');
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+
+    try {
+      final todo = await _graphQLService.updateTodo(
+        id: id,
+        title: title,
+        description: description,
+        categoryId: categoryId,
+        dueDate: dueDate,
+        location: location,
+        priority: priority,
+        tags: tags,
+      );
+      
+      _error = null;
+      print('? TodoProvider: Task updated successfully: ${todo.id}');
+      
+      // Refresh data based on the updated todo
+      if (todo.dueDate != null) {
+        final now = DateTime.now();
+        final today = DateTime(now.year, now.month, now.day);
+        final tomorrow = today.add(const Duration(days: 1));
+        
+        if (todo.dueDate!.isAfter(today) && todo.dueDate!.isBefore(tomorrow)) {
+          await getTodayTodos();
+        } else if (todo.dueDate!.isAfter(tomorrow)) {
+          await getUpcomingTodos();
+        }
+      }
+      
+      if (todo.category != null) {
+        await getTodosByCategory(todo.category!.id);
+      } else {
+        await getGeneralTodos();
+      }
+      
+      await getAllTodos();
+      
+    } catch (e) {
+      _error = e.toString();
+      print('? TodoProvider: updateTodo() Error: $_error');
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
 } 

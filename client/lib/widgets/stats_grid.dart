@@ -5,9 +5,58 @@ import '../pages/completed_tasks_page.dart';
 import '../providers/todo_provider.dart';
 import '../pages/date_range_filter_page.dart';
 import '../pages/chronological_tasks_page.dart';
+import '../models/todo.dart';
 
-class StatsGrid extends StatelessWidget {
+class StatsGrid extends StatefulWidget {
   const StatsGrid({super.key});
+
+  @override
+  State<StatsGrid> createState() => _StatsGridState();
+}
+
+class _StatsGridState extends State<StatsGrid> {
+  Map<String, Future<List<Todo>>> _todoFutures = {};
+  Map<String, int> _todoCounts = {};
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadTodoCounts();
+  }
+
+  Future<void> _loadTodoCounts() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    final todoProvider = Provider.of<TodoProvider>(context, listen: false);
+    
+    try {
+      // Load all todo counts in parallel
+      final todayTodos = await todoProvider.getTodayTodos();
+      final upcomingTodos = await todoProvider.getUpcomingTodos();
+      final allTodos = await todoProvider.getAllTodos();
+      
+      if (mounted) {
+        setState(() {
+          _todoCounts = {
+            'Today': todayTodos.length,
+            'Planned': upcomingTodos.length,
+            'All': allTodos.length,
+          };
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      print('Error loading todo counts: $e');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -21,7 +70,8 @@ class StatsGrid extends StatelessWidget {
                 'Today',
                 Icons.today,
                 Colors.blue,
-                futureBuilder: (context) => context.read<TodoProvider>().getTodayTodos(),
+                count: _todoCounts['Today'] ?? 0,
+                isLoading: _isLoading,
               ),
             ),
             const SizedBox(width: 16),
@@ -31,7 +81,8 @@ class StatsGrid extends StatelessWidget {
                 'Planned',
                 Icons.calendar_month,
                 Colors.orange,
-                futureBuilder: (context) => context.read<TodoProvider>().getUpcomingTodos(),
+                count: _todoCounts['Planned'] ?? 0,
+                isLoading: _isLoading,
               ),
             ),
           ],
@@ -45,7 +96,8 @@ class StatsGrid extends StatelessWidget {
                 'All',
                 Icons.list_alt,
                 Colors.green,
-                futureBuilder: (context) => context.read<TodoProvider>().getAllTodos(),
+                count: _todoCounts['All'] ?? 0,
+                isLoading: _isLoading,
               ),
             ),
             const SizedBox(width: 16),
@@ -55,6 +107,7 @@ class StatsGrid extends StatelessWidget {
                 'Completed',
                 Icons.check_circle,
                 Colors.purple,
+                hasCounter: false,
                 onTap: () {
                   Navigator.push(
                     context,
@@ -76,6 +129,7 @@ class StatsGrid extends StatelessWidget {
                 'Date Range',
                 Icons.date_range,
                 Colors.deepOrange,
+                hasCounter: false,
                 onTap: () {
                   Navigator.push(
                     context,
@@ -93,6 +147,7 @@ class StatsGrid extends StatelessWidget {
                 'Timeline',
                 Icons.timeline,
                 Colors.teal,
+                hasCounter: false,
                 onTap: () {
                   Navigator.push(
                     context,
@@ -114,24 +169,27 @@ class StatsGrid extends StatelessWidget {
     String title,
     IconData icon,
     Color color, {
-    Function(BuildContext)? futureBuilder,
+    int? count,
+    bool isLoading = false,
+    bool hasCounter = true,
     VoidCallback? onTap,
   }) {
     return GestureDetector(
       onTap: onTap ?? () {
-        if (futureBuilder != null) {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => TaskDetailPage(
-                title: title,
-                icon: icon,
-                color: color,
-                type: 'stat',
-              ),
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => TaskDetailPage(
+              title: title,
+              icon: icon,
+              color: color,
+              type: 'stat',
             ),
-          );
-        }
+          ),
+        ).then((_) {
+          // Refresh counts when returning
+          _loadTodoCounts();
+        });
       },
       child: Container(
         padding: const EdgeInsets.all(16),
@@ -163,42 +221,27 @@ class StatsGrid extends StatelessWidget {
                 fontWeight: FontWeight.bold,
               ),
             ),
-            if (futureBuilder != null)
-              FutureBuilder<List<dynamic>>(
-                future: futureBuilder(context),
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const SizedBox(
-                      height: 20,
-                      child: Center(
-                        child: SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                          ),
+            if (hasCounter)
+              isLoading
+                ? const SizedBox(
+                    height: 20,
+                    child: Center(
+                      child: SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
                         ),
                       ),
-                    );
-                  }
-                  
-                  if (snapshot.hasError) {
-                    return const Text(
-                      'Error',
-                      style: TextStyle(color: Colors.red),
-                    );
-                  }
-                  
-                  final count = snapshot.data?.length ?? 0;
-                  return Text(
-                    '$count tasks',
+                    ),
+                  )
+                : Text(
+                    '${count ?? 0} tasks',
                     style: TextStyle(
                       color: Colors.grey[600],
                       fontSize: 14,
                     ),
-                  );
-                },
-              ),
+                  ),
           ],
         ),
       ),

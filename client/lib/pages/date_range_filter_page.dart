@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../providers/todo_provider.dart';
 import '../models/todo.dart';
 import 'package:intl/intl.dart';
+import 'task_edit_page.dart';
 
 class DateRangeFilterPage extends StatefulWidget {
   const DateRangeFilterPage({super.key});
@@ -180,6 +181,18 @@ class _DateRangeFilterPageState extends State<DateRangeFilterPage> {
         borderRadius: BorderRadius.circular(8),
       ),
       child: ListTile(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => TaskEditPage(task: todo),
+            ),
+          ).then((updated) {
+            if (updated == true) {
+              _loadTasksByDateRange(); // Refresh data if task was updated
+            }
+          });
+        },
         leading: IconButton(
           icon: Icon(
             todo.completed ? Icons.check_circle : Icons.radio_button_unchecked,
@@ -202,9 +215,34 @@ class _DateRangeFilterPageState extends State<DateRangeFilterPage> {
           children: [
             if (todo.description != null && todo.description!.isNotEmpty)
               Text(
-                todo.description!,
+                _abbreviateText(todo.description!, 50),
                 style: TextStyle(
                   color: Colors.grey[600],
+                ),
+              ),
+            if (todo.location != null && todo.location!.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.location_on,
+                      size: 14,
+                      color: Colors.grey[600],
+                    ),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        todo.location!,
+                        style: TextStyle(
+                          color: Colors.grey[600],
+                          fontSize: 12,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             Text(
@@ -243,6 +281,13 @@ class _DateRangeFilterPageState extends State<DateRangeFilterPage> {
         ),
       ),
     );
+  }
+
+  String _abbreviateText(String text, int maxLength) {
+    if (text.length <= maxLength) {
+      return text;
+    }
+    return '${text.substring(0, maxLength)}...';
   }
 
   void _showFilterOptions() {

@@ -22,9 +22,15 @@ class _HomePageState extends State<HomePage> {
     // Initial load
     WidgetsBinding.instance.addPostFrameCallback((_) {
       print('? HomePage: addPostFrameCallback - Loading initial data');
-      context.read<TodoProvider>().loadTodos();
-      context.read<CategoryProvider>().loadCategories();
+      _loadInitialData();
     });
+  }
+
+  Future<void> _loadInitialData() async {
+    await Future.wait([
+      context.read<TodoProvider>().loadTodos(),
+      context.read<CategoryProvider>().loadCategories(),
+    ]);
   }
 
   Future<void> _refreshData() async {

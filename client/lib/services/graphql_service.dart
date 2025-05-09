@@ -9,8 +9,26 @@ class GraphQLService {
   late GraphQLClient _client;
 
   String _formatDateTime(DateTime dateTime) {
-    final utc = dateTime.toUtc();
-    return utc.toIso8601String(); // This will format as "2024-03-18T15:04:05.000Z"
+    // Format as ISO 8601 with timezone offset
+    // Create the date part: YYYY-MM-DD
+    final String datePart = "${dateTime.year}-"
+      "${dateTime.month.toString().padLeft(2, '0')}-"
+      "${dateTime.day.toString().padLeft(2, '0')}";
+    
+    // Create the time part: HH:MM:SS
+    final String timePart = "${dateTime.hour.toString().padLeft(2, '0')}:"
+      "${dateTime.minute.toString().padLeft(2, '0')}:"
+      "${dateTime.second.toString().padLeft(2, '0')}";
+    
+    // Add timezone offset
+    final offset = dateTime.timeZoneOffset;
+    final hours = offset.inHours.abs().toString().padLeft(2, '0');
+    final minutes = (offset.inMinutes.abs() % 60).toString().padLeft(2, '0');
+    final sign = offset.isNegative ? '-' : '+';
+    final offsetString = "$sign$hours:$minutes";
+    
+    // Combine all parts into a standard ISO 8601 format with timezone
+    return "${datePart}T${timePart}${offsetString}";
   }
 
   GraphQLService() {
@@ -346,46 +364,59 @@ class GraphQLService {
 
   Future<Todo> updateTodo({
     required String id,
-    String? title,
+    required String title,
     String? description,
-    bool? completed,
     String? categoryId,
-    DateTime? dueDate,
+    required DateTime dueDate,
     String? location,
     int? priority,
     List<String>? tags,
   }) async {
-    print('? GraphQL Request: updateTodo(id: $id, title: $title, completed: $completed, categoryId: $categoryId)');
-    
-    // Handle 'none' category specifically
-    if (categoryId == 'none') {
-      categoryId = null;
-      print('? Converting "none" category to null for updateTodo request');
-    }
+    print('? GraphQL Request: updateTodo(id: $id, title: $title, categoryId: $categoryId)');
     
     final Map<String, dynamic> inputMap = {
-      'id': id,
+      'title': title,
     };
     
-    if (title != null) inputMap['title'] = title;
-    if (description != null) inputMap['description'] = description;
-    if (completed != null) inputMap['completed'] = completed;
-    if (categoryId != null) inputMap['categoryId'] = categoryId;
-    if (dueDate != null) inputMap['dueDate'] = _formatDateTime(dueDate);
-    if (location != null) inputMap['location'] = location;
-    if (priority != null) inputMap['priority'] = priority;
-    if (tags != null) inputMap['tags'] = tags;
+    if (description != null && description.isNotEmpty) {
+      inputMap['description'] = description;
+    }
+    
+    // Only add categoryId if it has a valid value
+    if (categoryId != null && categoryId.isNotEmpty && 
+        categoryId != 'none' && categoryId != 'General') {
+      inputMap['categoryId'] = categoryId;
+      print('? Setting categoryId: $categoryId');
+    } else {
+      print('? Updating task with no category');
+    }
+    
+    if (dueDate != null) {
+      inputMap['dueDate'] = _formatDateTime(dueDate);
+    }
+    
+    if (location != null && location.isNotEmpty) {
+      inputMap['location'] = location;
+    }
+    
+    if (priority != null) {
+      inputMap['priority'] = priority;
+    }
+    
+    if (tags != null && tags.isNotEmpty) {
+      inputMap['tags'] = tags;
+    }
     
     final variables = {
+      'id': id,
       'input': inputMap
     };
     
     print('? GraphQL Variables: ${variables.toString()}');
 
-    // Mutation WITHOUT createdAt field in category
     const String mutation = '''
-      mutation UpdateTodo(\$input: TodoInput!) {
-        updateTodo(input: \$input) {
+      mutation UpdateTodo(\$id: ID!, \$input: TodoInput!) {
+        updateTodo(id: \$id, input: \$input) {
           id
           title
           description
@@ -412,6 +443,7 @@ class GraphQLService {
     );
 
     if (result.hasException) {
+      print('? GraphQL Error: ${result.exception.toString()}');
       throw Exception(result.exception.toString());
     }
 
