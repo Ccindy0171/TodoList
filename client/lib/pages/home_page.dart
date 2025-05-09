@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../widgets/stats_grid.dart';
 import '../widgets/todo_lists.dart';
+import '../widgets/add_task_dialog.dart';
 import '../providers/todo_provider.dart';
 import '../providers/category_provider.dart';
 
@@ -61,6 +62,19 @@ class _HomePageState extends State<HomePage> {
             ),
           ),
         ),
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          showDialog(
+            context: context,
+            builder: (context) => const AddTaskDialog(),
+          ).then((result) {
+            if (result == true) {
+              _refreshData(); // Refresh data if a task was created
+            }
+          });
+        },
+        child: const Icon(Icons.add),
       ),
     );
   }

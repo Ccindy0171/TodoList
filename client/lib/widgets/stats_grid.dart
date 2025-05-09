@@ -1,154 +1,203 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../pages/task_detail_page.dart';
-import '../pages/today_tasks_page.dart';
+import '../pages/completed_tasks_page.dart';
 import '../providers/todo_provider.dart';
+import '../pages/date_range_filter_page.dart';
+import '../pages/chronological_tasks_page.dart';
 
 class StatsGrid extends StatelessWidget {
   const StatsGrid({super.key});
 
   @override
   Widget build(BuildContext context) {
-    print('? StatsGrid: build() - Building widget');
-    return Consumer<TodoProvider>(
-      builder: (context, todoProvider, child) {
-        print('? StatsGrid: Consumer rebuilding with provider hashCode: ${todoProvider.hashCode}');
-        
-        // Cache the futures to avoid unnecessary rebuilds
-        final todayTodosFuture = todoProvider.getTodayTodos();
-        final upcomingTodosFuture = todoProvider.getUpcomingTodos();
-        final allTodosFuture = todoProvider.getAllTodos();
-        final completedTodosFuture = todoProvider.getCompletedTodayTodos();
-        
-        return FutureBuilder(
-          // Use a stable key that won't change with every provider update
-          key: const ValueKey('stats_grid'),
-          future: Future.wait([
-            todayTodosFuture,
-            upcomingTodosFuture,
-            allTodosFuture,
-            completedTodosFuture,
-          ]),
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              print('? StatsGrid: Waiting for data...');
-              return const Center(child: CircularProgressIndicator());
-            }
-            if (snapshot.hasError) {
-              print('? StatsGrid: Error loading data - ${snapshot.error}');
-              return Center(child: Text('Error: ${snapshot.error}'));
-            }
-            
-            final todayTodos = snapshot.data![0];
-            final upcomingTodos = snapshot.data![1];
-            final allTodos = snapshot.data![2];
-            final completedTodos = snapshot.data![3];
-            
-            print('? StatsGrid: Data loaded - Today: ${todayTodos.length}, Planned: ${upcomingTodos.length}, All: ${allTodos.length}, Completed: ${completedTodos.length}');
-
-            return GridView.count(
-              shrinkWrap: true,
-              crossAxisCount: 2,
-              mainAxisSpacing: 16,
-              crossAxisSpacing: 16,
-              childAspectRatio: 1.5,
-              children: [
-                StatCard(
-                  title: 'Today',
-                  count: todayTodos.length.toString(),
-                  icon: Icons.calendar_today,
-                  color: Colors.blue,
-                  type: 'stat',
-                ),
-                StatCard(
-                  title: 'Planned',
-                  count: upcomingTodos.length.toString(),
-                  icon: Icons.calendar_month,
-                  color: Colors.red,
-                  type: 'stat',
-                ),
-                StatCard(
-                  title: 'All',
-                  count: allTodos.length.toString(),
-                  icon: Icons.folder,
-                  color: Colors.black87,
-                  type: 'stat',
-                ),
-                StatCard(
-                  title: 'Completed',
-                  count: completedTodos.length.toString(),
-                  icon: Icons.check_circle_outline,
-                  color: Colors.green,
-                  type: 'stat',
-                ),
-              ],
-            );
-          },
-        );
-      },
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: _buildStatCard(
+                context,
+                'Today',
+                Icons.today,
+                Colors.blue,
+                futureBuilder: (context) => context.read<TodoProvider>().getTodayTodos(),
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: _buildStatCard(
+                context,
+                'Planned',
+                Icons.calendar_month,
+                Colors.orange,
+                futureBuilder: (context) => context.read<TodoProvider>().getUpcomingTodos(),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(
+              child: _buildStatCard(
+                context,
+                'All',
+                Icons.list_alt,
+                Colors.green,
+                futureBuilder: (context) => context.read<TodoProvider>().getAllTodos(),
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: _buildStatCard(
+                context,
+                'Completed',
+                Icons.check_circle,
+                Colors.purple,
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const CompletedTasksPage(),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(
+              child: _buildStatCard(
+                context,
+                'Date Range',
+                Icons.date_range,
+                Colors.deepOrange,
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const DateRangeFilterPage(),
+                    ),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: _buildStatCard(
+                context,
+                'Timeline',
+                Icons.timeline,
+                Colors.teal,
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const ChronologicalTasksPage(),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
-}
 
-class StatCard extends StatelessWidget {
-  final String title;
-  final String count;
-  final IconData icon;
-  final Color color;
-  final String type;
-
-  const StatCard({
-    super.key,
-    required this.title,
-    required this.count,
-    required this.icon,
-    required this.color,
-    required this.type,
-  });
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildStatCard(
+    BuildContext context,
+    String title,
+    IconData icon,
+    Color color, {
+    Function(BuildContext)? futureBuilder,
+    VoidCallback? onTap,
+  }) {
     return GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => title == 'Today'
-                ? const TodayTasksPage()
-                : TaskDetailPage(
-                    title: title,
-                    icon: icon,
-                    color: color,
-                    type: type,
-                  ),
-          ),
-        );
+      onTap: onTap ?? () {
+        if (futureBuilder != null) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => TaskDetailPage(
+                title: title,
+                icon: icon,
+                color: color,
+                type: 'stat',
+              ),
+            ),
+          );
+        }
       },
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.grey.withOpacity(0.1),
+              spreadRadius: 1,
+              blurRadius: 2,
+              offset: const Offset(0, 1),
+            ),
+          ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(icon, color: color),
-            const Spacer(),
+            Icon(
+              icon,
+              color: color,
+              size: 28,
+            ),
+            const SizedBox(height: 8),
             Text(
               title,
-              style: TextStyle(
-                color: Colors.grey[600],
-                fontSize: 14,
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
               ),
             ),
-            if (count.isNotEmpty)
-              Text(
-                count,
-                style: const TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                ),
+            if (futureBuilder != null)
+              FutureBuilder<List<dynamic>>(
+                future: futureBuilder(context),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const SizedBox(
+                      height: 20,
+                      child: Center(
+                        child: SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                          ),
+                        ),
+                      ),
+                    );
+                  }
+                  
+                  if (snapshot.hasError) {
+                    return const Text(
+                      'Error',
+                      style: TextStyle(color: Colors.red),
+                    );
+                  }
+                  
+                  final count = snapshot.data?.length ?? 0;
+                  return Text(
+                    '$count tasks',
+                    style: TextStyle(
+                      color: Colors.grey[600],
+                      fontSize: 14,
+                    ),
+                  );
+                },
               ),
           ],
         ),

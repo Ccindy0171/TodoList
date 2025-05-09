@@ -337,4 +337,44 @@ class TodoProvider with ChangeNotifier {
       return [];
     }
   }
+
+  Future<List<Todo>> getAllCompletedTodos() async {
+    print('? TodoProvider: getAllCompletedTodos() - Fetching all completed tasks');
+    return await _graphQLService.getTodos(
+      completed: true, // Explicitly request completed tasks
+    );
+  }
+
+  Future<List<Todo>> getCompletedTodosByDateRange(DateTime start, DateTime end) async {
+    print('? TodoProvider: getCompletedTodosByDateRange() - Fetching completed tasks between $start and $end');
+    return await _graphQLService.getTodos(
+      completed: true,
+      startDate: start,
+      endDate: end,
+    );
+  }
+
+  Future<List<Todo>> getUncompletedTodosByDateRange(DateTime start, DateTime end) async {
+    print('? TodoProvider: getUncompletedTodosByDateRange() - Fetching uncompleted tasks between $start and $end');
+    return await _graphQLService.getTodos(
+      completed: false,
+      startDate: start,
+      endDate: end,
+    );
+  }
+
+  Future<List<Todo>> getChronologicalTodos({bool? completed}) async {
+    print('? TodoProvider: getChronologicalTodos(completed: $completed) - Fetching tasks in chronological order');
+    
+    final todos = await _graphQLService.getTodos(
+      completed: completed,
+    );
+    
+    // Sort by due date (chronological order)
+    todos.sort((a, b) => a.dueDate != null && b.dueDate != null 
+        ? a.dueDate!.compareTo(b.dueDate!) 
+        : 0);
+        
+    return todos;
+  }
 } 
