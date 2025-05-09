@@ -144,392 +144,240 @@ class _ServerSettingsPageState extends State<ServerSettingsPage> {
           final discoveredServers = provider.discoveredServers;
           final selectedUrl = provider.selectedServerUrl;
           
-          return Column(
-            children: [
-              // Header with action buttons
-              Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            'GraphQL Servers',
-                            style: Theme.of(context).textTheme.headlineSmall,
-                          ),
-                        ),
-                        ElevatedButton.icon(
-                          onPressed: provider.isScanning
-                              ? null
-                              : () => provider.scanNetwork(),
-                          icon: const Icon(Icons.search),
-                          label: const Text('Scan Network'),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Discovered ${discoveredServers.length} server(s)',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                    if (provider.error != null)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 8.0),
-                        child: Text(
-                          provider.error!,
-                          style: TextStyle(color: Colors.red),
-                        ),
-                      ),
-                    
-                    // Test connection section
-                    if (selectedUrl != null) ...[
-                      const SizedBox(height: 16),
+          return SingleChildScrollView(
+            child: Column(
+              children: [
+                // Header with action buttons
+                Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    children: [
                       Row(
                         children: [
                           Expanded(
                             child: Text(
-                              'Current server: $selectedUrl',
-                              style: Theme.of(context).textTheme.bodyMedium,
+                              'GraphQL Servers',
+                              style: Theme.of(context).textTheme.headlineSmall,
                             ),
                           ),
                           ElevatedButton.icon(
-                            onPressed: _isTesting
+                            onPressed: provider.isScanning
                                 ? null
-                                : () => _testConnection(selectedUrl),
-                            icon: const Icon(Icons.network_check),
-                            label: const Text('Test Connection'),
+                                : () => provider.scanNetwork(),
+                            icon: const Icon(Icons.search),
+                            label: const Text('Scan Network'),
                           ),
                         ],
-                      ),
-                      if (_isTesting)
-                        const Padding(
-                          padding: EdgeInsets.only(top: 8.0),
-                          child: Center(child: CircularProgressIndicator()),
-                        ),
-                      if (_testResult != null)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 8.0),
-                          child: Container(
-                            padding: const EdgeInsets.all(8.0),
-                            color: _testResult!.contains('CONNECTION SUCCESSFUL')
-                                ? Colors.green.withOpacity(0.1)
-                                : Colors.red.withOpacity(0.1),
-                            child: Text(
-                              _testResult!,
-                              style: TextStyle(
-                                color: _testResult!.contains('CONNECTION SUCCESSFUL')
-                                    ? Colors.green
-                                    : Colors.red,
-                              ),
-                            ),
-                          ),
-                        ),
-                    ],
-                  ],
-                ),
-              ),
-              
-              // Manual server entry
-              Card(
-                margin: const EdgeInsets.all(16.0),
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Add Server Manually',
-                        style: Theme.of(context).textTheme.titleMedium,
                       ),
                       const SizedBox(height: 8),
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // IP Address
-                          Expanded(
-                            flex: 3,
-                            child: TextField(
-                              controller: _ipController,
-                              decoration: const InputDecoration(
-                                labelText: 'IP Address',
-                                hintText: '192.168.1.100',
-                              ),
-                              keyboardType: TextInputType.number,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          // Port
-                          Expanded(
-                            flex: 1,
-                            child: TextField(
-                              controller: _portController,
-                              decoration: const InputDecoration(
-                                labelText: 'Port',
-                                hintText: '8080',
-                              ),
-                              keyboardType: TextInputType.number,
-                            ),
-                          ),
-                        ],
+                      Text(
+                        'Discovered ${discoveredServers.length} server(s)',
+                        style: Theme.of(context).textTheme.bodySmall,
                       ),
+                      if (provider.error != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8.0),
+                          child: Text(
+                            provider.error!,
+                            style: TextStyle(color: Colors.red),
+                          ),
+                        ),
                       
-                      // Recent IPs section
-                      if (_recentIPs.isNotEmpty) ...[
+                      // Test connection section
+                      if (selectedUrl != null) ...[
                         const SizedBox(height: 16),
-                        Text(
-                          'Recent Servers',
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                'Current server: $selectedUrl',
+                                style: Theme.of(context).textTheme.bodyMedium,
+                              ),
+                            ),
+                            ElevatedButton.icon(
+                              onPressed: _isTesting
+                                  ? null
+                                  : () => _testConnection(selectedUrl),
+                              icon: const Icon(Icons.network_check),
+                              label: const Text('Test Connection'),
+                            ),
+                          ],
+                        ),
+                        if (_isTesting)
+                          const Padding(
+                            padding: EdgeInsets.only(top: 8.0),
+                            child: Center(child: CircularProgressIndicator()),
                           ),
-                        ),
-                        const SizedBox(height: 8),
-                        Wrap(
-                          spacing: 8,
-                          children: _recentIPs.map((ip) {
-                            return ActionChip(
-                              avatar: const Icon(Icons.history, size: 16),
-                              label: Text(ip),
-                              onPressed: () {
-                                _ipController.text = ip;
-                                // Also try to add the server immediately with default port
-                                final port = int.tryParse(_portController.text) ?? 8080;
-                                provider.addManualServer(ip, port).then((success) {
-                                  if (success && mounted) {
-                                    // If successful, also select this server
-                                    final serverUrl = 'http://$ip:$port/query';
-                                    provider.selectServer(serverUrl);
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text('Connected to saved server'),
-                                        duration: Duration(seconds: 2),
-                                      ),
-                                    );
-                                  }
-                                });
-                              },
-                            );
-                          }).toList(),
-                        ),
-                      ] else if (_loadingRecentIPs) ...[
-                        const SizedBox(height: 16),
-                        const Center(
-                          child: SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
+                        if (_testResult != null)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8.0),
+                            child: Container(
+                              padding: const EdgeInsets.all(8.0),
+                              color: _testResult!.contains('CONNECTION SUCCESSFUL')
+                                  ? Colors.green.withOpacity(0.1)
+                                  : Colors.red.withOpacity(0.1),
+                              child: Text(
+                                _testResult!,
+                                style: TextStyle(
+                                  color: _testResult!.contains('CONNECTION SUCCESSFUL')
+                                      ? Colors.green
+                                      : Colors.red,
+                                ),
+                              ),
+                            ),
                           ),
-                        ),
                       ],
-                      
-                      const SizedBox(height: 16),
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: ElevatedButton(
-                          onPressed: () async {
-                            if (_ipController.text.isEmpty) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Please enter an IP address'),
-                                ),
-                              );
-                              return;
-                            }
-                            
-                            final port = int.tryParse(_portController.text) ?? 8080;
-                            final success = await provider.addManualServer(
-                              _ipController.text, 
-                              port,
-                            );
-                            
-                            if (success && mounted) {
-                              // Also select this server automatically
-                              final serverUrl = 'http://${_ipController.text}:$port/query';
-                              await provider.selectServer(serverUrl);
-                              
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Server added and selected'),
-                                ),
-                              );
-                              _ipController.clear();
-                            } else if (mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Failed to add server. Verify it is a valid GraphQL server.'),
-                                ),
-                              );
-                            }
-                          },
-                          child: const Text('Add Server'),
-                        ),
-                      ),
                     ],
                   ),
                 ),
-              ),
-              
-              // List of servers
-              Expanded(
-                child: provider.isScanning
-                    ? const Center(child: CircularProgressIndicator())
-                    : discoveredServers.isEmpty
-                        ? Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const Icon(
-                                  Icons.public_off,
-                                  size: 48,
-                                  color: Colors.grey,
+                
+                // Manual server entry
+                Card(
+                  margin: const EdgeInsets.all(16.0),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Add Server Manually',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // IP Address
+                            Expanded(
+                              flex: 3,
+                              child: TextField(
+                                controller: _ipController,
+                                decoration: const InputDecoration(
+                                  labelText: 'IP Address',
+                                  hintText: '192.168.1.100',
                                 ),
-                                const SizedBox(height: 16),
-                                Text(
-                                  'No servers found',
-                                  style: Theme.of(context).textTheme.titleMedium,
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  'Tap "Scan Network" to discover GraphQL servers,\nor add one manually above.',
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(color: Colors.grey[600]),
-                                ),
-                                const SizedBox(height: 16),
-                                OutlinedButton.icon(
-                                  onPressed: () => provider.scanNetwork(),
-                                  icon: const Icon(Icons.search),
-                                  label: const Text('Scan Network'),
-                                ),
-                              ],
+                                keyboardType: TextInputType.number,
+                              ),
                             ),
-                          )
-                        : ListView.builder(
-                            itemCount: discoveredServers.length,
-                            itemBuilder: (context, index) {
-                              final server = discoveredServers[index];
-                              final isSelected = server.url == selectedUrl;
-                              final isDefaultUrl = server.url.contains('10.0.2.2') || 
-                                                 server.url.contains('localhost');
-                              
-                              return ListTile(
-                                leading: Icon(
-                                  isDefaultUrl
-                                      ? Icons.phonelink_setup
-                                      : server.isVerified
-                                          ? Icons.verified
-                                          : Icons.warning,
-                                  color: isDefaultUrl
-                                      ? Colors.orange
-                                      : server.isVerified
-                                          ? Colors.green
-                                          : Colors.orange,
+                            const SizedBox(width: 8),
+                            // Port
+                            Expanded(
+                              flex: 1,
+                              child: TextField(
+                                controller: _portController,
+                                decoration: const InputDecoration(
+                                  labelText: 'Port',
+                                  hintText: '8080',
                                 ),
-                                title: Row(
-                                  children: [
-                                    Expanded(
-                                      child: Text(server.name ?? 'Unnamed Server'),
-                                    ),
-                                    if (isDefaultUrl)
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                        decoration: BoxDecoration(
-                                          color: Colors.orange.withOpacity(0.2),
-                                          borderRadius: BorderRadius.circular(4),
+                                keyboardType: TextInputType.number,
+                              ),
+                            ),
+                          ],
+                        ),
+                        
+                        // Recent IPs section
+                        if (_recentIPs.isNotEmpty) ...[
+                          const SizedBox(height: 16),
+                          Text(
+                            'Recent Servers',
+                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 8,
+                            children: _recentIPs.map((ip) {
+                              return ActionChip(
+                                avatar: const Icon(Icons.history, size: 16),
+                                label: Text(ip),
+                                onPressed: () {
+                                  _ipController.text = ip;
+                                  // Also try to add the server immediately with default port
+                                  final port = int.tryParse(_portController.text) ?? 8080;
+                                  provider.addManualServer(ip, port).then((success) {
+                                    if (success && mounted) {
+                                      // If successful, also select this server
+                                      final serverUrl = 'http://$ip:$port/query';
+                                      provider.selectServer(serverUrl);
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(
+                                          content: Text('Connected to saved server'),
+                                          duration: Duration(seconds: 2),
                                         ),
-                                        child: const Text(
-                                          'Default',
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            color: Colors.orange,
-                                          ),
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                                subtitle: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(server.url),
-                                    Text(
-                                      'Last seen: ${_formatDate(server.lastSeen)}',
-                                      style: Theme.of(context).textTheme.bodySmall,
-                                    ),
-                                  ],
-                                ),
-                                trailing: isSelected
-                                    ? const Icon(
-                                        Icons.check_circle,
-                                        color: Colors.green,
-                                      )
-                                    : IconButton(
-                                        icon: const Icon(Icons.more_vert),
-                                        onPressed: () {
-                                          _showServerOptions(context, server);
-                                        },
-                                      ),
-                                selected: isSelected,
-                                onTap: () {
-                                  if (!isSelected) {
-                                    print('? ServerSettings: User selected server: ${server.url}');
-                                    
-                                    // Show loading indicator
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text('Connecting to server...'),
-                                        duration: Duration(seconds: 1),
-                                      ),
-                                    );
-                                    
-                                    // First, get the current GraphQLService and check its URL
-                                    final graphQLService = Provider.of<GraphQLService>(context, listen: false);
-                                    print('? ServerSettings: Current GraphQLService URL: ${graphQLService.serverUrl}');
-                                    
-                                    // Select the server
-                                    provider.selectServer(server.url).then((_) {
-                                      // Double-check both the provider and service have the correct URL
-                                      print('? ServerSettings: After selection - Provider URL: ${provider.selectedServerUrl}');
-                                      print('? ServerSettings: After selection - GraphQLService URL: ${graphQLService.serverUrl}');
-                                      
-                                      // Verify server selection was successful in both places
-                                      if (provider.selectedServerUrl == server.url && 
-                                          graphQLService.serverUrl == server.url) {
-                                        print('? ServerSettings: URL successfully set in both places');
-                                        ScaffoldMessenger.of(context).showSnackBar(
-                                          SnackBar(
-                                            content: Text('Connected to ${server.name ?? server.url}'),
-                                            backgroundColor: Colors.green,
-                                          ),
-                                        );
-                                      } else {
-                                        print('? ServerSettings: URL MISMATCH DETECTED!');
-                                        print('? ServerSettings: Provider URL: ${provider.selectedServerUrl}');
-                                        print('? ServerSettings: GraphQLService URL: ${graphQLService.serverUrl}');
-                                        
-                                        // Try to force the GraphQLService to use the correct URL
-                                        graphQLService.setServerUrl(server.url).then((_) {
-                                          // Check if the fix worked
-                                          print('? ServerSettings: After fix - GraphQLService URL: ${graphQLService.serverUrl}');
-                                          
-                                          ScaffoldMessenger.of(context).showSnackBar(
-                                            SnackBar(
-                                              content: Text(graphQLService.serverUrl == server.url 
-                                                ? 'Server connection fixed' 
-                                                : 'Failed to connect to server'),
-                                              backgroundColor: graphQLService.serverUrl == server.url 
-                                                ? Colors.green 
-                                                : Colors.red,
-                                            ),
-                                          );
-                                        });
-                                      }
-                                    });
-                                  }
+                                      );
+                                    }
+                                  });
                                 },
                               );
-                            },
+                            }).toList(),
                           ),
-              ),
-            ],
+                        ] else if (_loadingRecentIPs) ...[
+                          const SizedBox(height: 16),
+                          const Center(
+                            child: SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                          ),
+                        ],
+                        
+                        const SizedBox(height: 16),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: ElevatedButton(
+                            onPressed: () async {
+                              if (_ipController.text.isEmpty) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Please enter an IP address'),
+                                  ),
+                                );
+                                return;
+                              }
+                              
+                              final port = int.tryParse(_portController.text) ?? 8080;
+                              final success = await provider.addManualServer(
+                                _ipController.text, 
+                                port,
+                              );
+                              
+                              if (success && mounted) {
+                                // Also select this server automatically
+                                final serverUrl = 'http://${_ipController.text}:$port/query';
+                                await provider.selectServer(serverUrl);
+                                
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Server added and selected'),
+                                  ),
+                                );
+                                _ipController.clear();
+                              } else if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Failed to add server. Verify it is a valid GraphQL server.'),
+                                  ),
+                                );
+                              }
+                            },
+                            child: const Text('Add Server'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                
+                // List of servers
+                provider.isScanning
+                    ? const Center(child: CircularProgressIndicator())
+                    : discoveredServers.isEmpty
+                        ? _buildNoServersFound(context, provider)
+                        : _buildServerList(context, discoveredServers, selectedUrl),
+              ],
+            ),
           );
         },
       ),
@@ -652,6 +500,172 @@ class _ServerSettingsPageState extends State<ServerSettingsPage> {
               child: const Text('Remove'),
             ),
           ],
+        );
+      },
+    );
+  }
+
+  // Extract the "No servers found" widget to a separate method for better organization
+  Widget _buildNoServersFound(BuildContext context, ServerDiscoveryProvider provider) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 24.0),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(
+            Icons.public_off,
+            size: 48,
+            color: Colors.grey,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'No servers found',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Tap "Scan Network" to discover GraphQL servers,\nor add one manually above.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.grey[600]),
+          ),
+          const SizedBox(height: 16),
+          OutlinedButton.icon(
+            onPressed: () => provider.scanNetwork(),
+            icon: const Icon(Icons.search),
+            label: const Text('Scan Network'),
+          ),
+        ],
+      ),
+    );
+  }
+  
+  // Extract the server list to a separate method for better organization
+  Widget _buildServerList(BuildContext context, List<GraphQLServerInfo> discoveredServers, String? selectedUrl) {
+    return ListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(), // Disable scrolling as parent is scrollable
+      itemCount: discoveredServers.length,
+      itemBuilder: (context, index) {
+        final server = discoveredServers[index];
+        final isSelected = server.url == selectedUrl;
+        final isDefaultUrl = server.url.contains('10.0.2.2') || 
+                           server.url.contains('localhost');
+        
+        return ListTile(
+          leading: Icon(
+            isDefaultUrl
+                ? Icons.phonelink_setup
+                : server.isVerified
+                    ? Icons.verified
+                    : Icons.warning,
+            color: isDefaultUrl
+                ? Colors.orange
+                : server.isVerified
+                    ? Colors.green
+                    : Colors.orange,
+          ),
+          title: Row(
+            children: [
+              Expanded(
+                child: Text(server.name ?? 'Unnamed Server'),
+              ),
+              if (isDefaultUrl)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: const Text(
+                    'Default',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.orange,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(server.url),
+              Text(
+                'Last seen: ${_formatDate(server.lastSeen)}',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
+          ),
+          trailing: isSelected
+              ? const Icon(
+                  Icons.check_circle,
+                  color: Colors.green,
+                )
+              : IconButton(
+                  icon: const Icon(Icons.more_vert),
+                  onPressed: () {
+                    _showServerOptions(context, server);
+                  },
+                ),
+          selected: isSelected,
+          onTap: () {
+            if (!isSelected) {
+              print('? ServerSettings: User selected server: ${server.url}');
+              
+              // Show loading indicator
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Connecting to server...'),
+                  duration: Duration(seconds: 1),
+                ),
+              );
+              
+              // First, get the current GraphQLService and check its URL
+              final graphQLService = Provider.of<GraphQLService>(context, listen: false);
+              print('? ServerSettings: Current GraphQLService URL: ${graphQLService.serverUrl}');
+              
+              // Select the server
+              Provider.of<ServerDiscoveryProvider>(context, listen: false).selectServer(server.url).then((_) {
+                // Double-check both the provider and service have the correct URL
+                final updatedProvider = Provider.of<ServerDiscoveryProvider>(context, listen: false);
+                print('? ServerSettings: After selection - Provider URL: ${updatedProvider.selectedServerUrl}');
+                print('? ServerSettings: After selection - GraphQLService URL: ${graphQLService.serverUrl}');
+                
+                // Verify server selection was successful in both places
+                if (updatedProvider.selectedServerUrl == server.url && 
+                    graphQLService.serverUrl == server.url) {
+                  print('? ServerSettings: URL successfully set in both places');
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Connected to ${server.name ?? server.url}'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                } else {
+                  print('? ServerSettings: URL MISMATCH DETECTED!');
+                  print('? ServerSettings: Provider URL: ${updatedProvider.selectedServerUrl}');
+                  print('? ServerSettings: GraphQLService URL: ${graphQLService.serverUrl}');
+                  
+                  // Try to force the GraphQLService to use the correct URL
+                  graphQLService.setServerUrl(server.url).then((_) {
+                    // Check if the fix worked
+                    print('? ServerSettings: After fix - GraphQLService URL: ${graphQLService.serverUrl}');
+                    
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(graphQLService.serverUrl == server.url 
+                          ? 'Server connection fixed' 
+                          : 'Failed to connect to server'),
+                        backgroundColor: graphQLService.serverUrl == server.url 
+                          ? Colors.green 
+                          : Colors.red,
+                      ),
+                    );
+                  });
+                }
+              });
+            }
+          },
         );
       },
     );

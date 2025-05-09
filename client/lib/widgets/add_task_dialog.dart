@@ -185,199 +185,234 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Add New Task'),
-      content: Form(
-        key: _formKey,
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextFormField(
-                controller: _titleController,
-                decoration: const InputDecoration(
-                  labelText: 'Title',
-                  border: OutlineInputBorder(),
+    return Dialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 24.0),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Form(
+          key: _formKey,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text(
+                  'Add New Task',
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  textAlign: TextAlign.center,
                 ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter a title';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _descriptionController,
-                decoration: const InputDecoration(
-                  labelText: 'Description (optional)',
-                  border: OutlineInputBorder(),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _titleController,
+                  decoration: const InputDecoration(
+                    labelText: 'Title',
+                    border: OutlineInputBorder(),
+                  ),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Please enter a title';
+                    }
+                    return null;
+                  },
                 ),
-                maxLines: 3,
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _locationController,
-                decoration: const InputDecoration(
-                  labelText: 'Location (optional)',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.location_on_outlined),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _descriptionController,
+                  decoration: const InputDecoration(
+                    labelText: 'Description (optional)',
+                    border: OutlineInputBorder(),
+                  ),
+                  maxLines: 3,
                 ),
-              ),
-              const SizedBox(height: 16),
-              Consumer<CategoryProvider>(
-                builder: (context, categoryProvider, child) {
-                  print('? AddTaskDialog: Consumer rebuilding, found ${categoryProvider.categories.length} categories');
-                  
-                  if (categoryProvider.isLoading || _isLoading) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _locationController,
+                  decoration: const InputDecoration(
+                    labelText: 'Location (optional)',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.location_on_outlined),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Consumer<CategoryProvider>(
+                  builder: (context, categoryProvider, child) {
+                    print('? AddTaskDialog: Consumer rebuilding, found ${categoryProvider.categories.length} categories');
+                    
+                    if (categoryProvider.isLoading || _isLoading) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
 
-                  if (categoryProvider.error != null) {
-                    return Text('Error: ${categoryProvider.error}');
-                  }
+                    if (categoryProvider.error != null) {
+                      return Text('Error: ${categoryProvider.error}');
+                    }
 
-                  // Sort categories for better UX
-                  final sortedCategories = List<models.Category>.from(categoryProvider.categories);
-                  sortedCategories.sort((a, b) => a.name.compareTo(b.name));
+                    // Sort categories for better UX
+                    final sortedCategories = List<models.Category>.from(categoryProvider.categories);
+                    sortedCategories.sort((a, b) => a.name.compareTo(b.name));
 
-                  return Column(
-                    children: [
-                      if (!_isCreatingNewCategory) ...[
-                        DropdownButtonFormField<String?>(
-                          value: _selectedCategoryId,
-                          decoration: const InputDecoration(
-                            labelText: 'Category (optional)',
-                            border: OutlineInputBorder(),
-                          ),
-                          items: [
-                            const DropdownMenuItem<String?>(
-                              value: null,
-                              child: Text('None'),
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        if (!_isCreatingNewCategory) ...[
+                          DropdownButtonFormField<String?>(
+                            value: _selectedCategoryId,
+                            decoration: const InputDecoration(
+                              labelText: 'Category (optional)',
+                              border: OutlineInputBorder(),
+                              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 16),
                             ),
-                            ...sortedCategories.map((category) {
-                              return DropdownMenuItem<String?>(
-                                value: category.id,
+                            isExpanded: true,
+                            items: [
+                              const DropdownMenuItem<String?>(
+                                value: null,
+                                child: Text('None'),
+                              ),
+                              ...sortedCategories.map((category) {
+                                return DropdownMenuItem<String?>(
+                                  value: category.id,
+                                  child: Row(
+                                    children: [
+                                      Container(
+                                        width: 16,
+                                        height: 16,
+                                        decoration: BoxDecoration(
+                                          color: Color(
+                                            int.parse(
+                                              category.color.replaceAll('#', '0xFF'),
+                                            ),
+                                          ),
+                                          shape: BoxShape.circle,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Flexible(
+                                        child: Text(
+                                          category.name,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }).toList(),
+                            ],
+                            onChanged: (value) {
+                              setState(() {
+                                _selectedCategoryId = value;
+                                print('Selected category: $_selectedCategoryId');
+                              });
+                            },
+                            hint: const Text('Select a category (optional)'),
+                          ),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              TextButton(
+                                onPressed: () {
+                                  categoryProvider.loadCategories();
+                                },
+                                child: const Text('Refresh Categories'),
+                                style: TextButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                                ),
+                              ),
+                              TextButton(
+                                onPressed: () {
+                                  setState(() {
+                                    _isCreatingNewCategory = true;
+                                  });
+                                },
+                                child: const Text('New Category'),
+                                style: TextButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ] else ...[
+                          TextFormField(
+                            controller: _newCategoryController,
+                            decoration: const InputDecoration(
+                              labelText: 'New Category Name',
+                              border: OutlineInputBorder(),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          DropdownButtonFormField<String>(
+                            value: _selectedColor,
+                            decoration: const InputDecoration(
+                              labelText: 'Category Color',
+                              border: OutlineInputBorder(),
+                              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                            ),
+                            isExpanded: true,
+                            items: _availableColors.map((color) {
+                              return DropdownMenuItem(
+                                value: color,
                                 child: Row(
                                   children: [
                                     Container(
                                       width: 16,
                                       height: 16,
                                       decoration: BoxDecoration(
-                                        color: Color(
-                                          int.parse(
-                                            category.color.replaceAll('#', '0xFF'),
-                                          ),
-                                        ),
+                                        color: _parseColor(color),
                                         shape: BoxShape.circle,
                                       ),
                                     ),
                                     const SizedBox(width: 8),
-                                    Text(category.name),
+                                    Flexible(
+                                      child: Text(
+                                        color,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
                                   ],
                                 ),
                               );
                             }).toList(),
-                          ],
-                          onChanged: (value) {
-                            setState(() {
-                              _selectedCategoryId = value;
-                              print('Selected category: $_selectedCategoryId');
-                            });
-                          },
-                          hint: const Text('Select a category (optional)'),
-                        ),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            TextButton(
-                              onPressed: () {
-                                categoryProvider.loadCategories();
-                              },
-                              child: const Text('Refresh Categories'),
-                            ),
-                            TextButton(
-                              onPressed: () {
+                            onChanged: (newValue) {
+                              if (newValue != null) {
                                 setState(() {
-                                  _isCreatingNewCategory = true;
+                                  _selectedColor = newValue;
                                 });
-                              },
-                              child: const Text('New Category'),
-                            ),
-                          ],
-                        ),
-                      ] else ...[
-                        TextFormField(
-                          controller: _newCategoryController,
-                          decoration: const InputDecoration(
-                            labelText: 'New Category Name',
-                            border: OutlineInputBorder(),
+                              }
+                            },
                           ),
-                        ),
-                        const SizedBox(height: 16),
-                        DropdownButtonFormField<String>(
-                          value: _selectedColor,
-                          decoration: const InputDecoration(
-                            labelText: 'Category Color',
-                            border: OutlineInputBorder(),
-                          ),
-                          items: _availableColors.map((color) {
-                            return DropdownMenuItem(
-                              value: color,
-                              child: Row(
-                                children: [
-                                  Container(
-                                    width: 16,
-                                    height: 16,
-                                    decoration: BoxDecoration(
-                                      color: _parseColor(color),
-                                      shape: BoxShape.circle,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Text(color),
-                                ],
+                          const SizedBox(height: 16),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              TextButton(
+                                onPressed: () {
+                                  setState(() {
+                                    _isCreatingNewCategory = false;
+                                    _newCategoryController.clear();
+                                  });
+                                },
+                                child: const Text('Cancel'),
                               ),
-                            );
-                          }).toList(),
-                          onChanged: (newValue) {
-                            if (newValue != null) {
-                              setState(() {
-                                _selectedColor = newValue;
-                              });
-                            }
-                          },
-                        ),
-                        const SizedBox(height: 16),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: [
-                            TextButton(
-                              onPressed: () {
-                                setState(() {
-                                  _isCreatingNewCategory = false;
-                                  _newCategoryController.clear();
-                                });
-                              },
-                              child: const Text('Cancel'),
-                            ),
-                            const SizedBox(width: 8),
-                            ElevatedButton(
-                              onPressed: _createNewCategory,
-                              child: const Text('Create'),
-                            ),
-                          ],
-                        ),
+                              const SizedBox(width: 8),
+                              ElevatedButton(
+                                onPressed: _createNewCategory,
+                                child: const Text('Create'),
+                              ),
+                            ],
+                          ),
+                        ],
                       ],
-                    ],
-                  );
-                },
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextButton.icon(
+                    );
+                  },
+                ),
+                const SizedBox(height: 16),
+                Wrap(
+                  alignment: WrapAlignment.spaceBetween,
+                  spacing: 16,
+                  children: [
+                    TextButton.icon(
                       onPressed: () => _selectDate(context),
                       icon: const Icon(Icons.calendar_today),
                       label: Text(
@@ -385,10 +420,9 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
                             ? DateFormat('yyyy-MM-dd').format(_selectedDate!)
                             : 'Select Date',
                       ),
+                      style: TextButton.styleFrom(padding: EdgeInsets.zero),
                     ),
-                  ),
-                  Expanded(
-                    child: TextButton.icon(
+                    TextButton.icon(
                       onPressed: () => _selectTime(context),
                       icon: const Icon(Icons.access_time),
                       label: Text(
@@ -396,29 +430,34 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
                             ? _selectedTime!.format(context)
                             : 'Select Time',
                       ),
+                      style: TextButton.styleFrom(padding: EdgeInsets.zero),
                     ),
-                  ),
-                ],
-              ),
-              if (_selectedDate == null || _selectedTime == null)
-                const Text(
-                  'Due date is required',
-                  style: TextStyle(color: Colors.red),
+                  ],
                 ),
-            ],
+                if (_selectedDate == null || _selectedTime == null)
+                  const Text(
+                    'Due date is required',
+                    style: TextStyle(color: Colors.red),
+                  ),
+                const SizedBox(height: 24),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: const Text('Cancel'),
+                    ),
+                    ElevatedButton(
+                      onPressed: _submitForm,
+                      child: const Text('Add Task'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
-        ),
-        ElevatedButton(
-          onPressed: _submitForm,
-          child: const Text('Add Task'),
-        ),
-      ],
     );
   }
 

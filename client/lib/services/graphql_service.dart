@@ -9,13 +9,14 @@ import 'dart:convert';
 
 class GraphQLService {
   // Default URL for backward compatibility
-  static const String _defaultUrl = 'http://10.0.2.2:8080/query'; // for android emulator
-  // static const String _defaultUrl = 'http://localhost:8080/query'; // for web
+  // static const String _defaultUrl = 'http://10.0.2.2:8080/query'; // for android emulator
+  static const String _defaultUrl = 'http://localhost:8080/query'; // for web
   
   // Variables to store dynamic URL
   String _serverUrl = _defaultUrl;
   bool _isUsingDefaultUrl = true;
   bool _allowDefaultUrl = false;
+  bool _isInitialized = false;
   
   // Initialize _client with the default URL to avoid LateInitializationError
   GraphQLClient _client = GraphQLClient(
@@ -31,6 +32,14 @@ class GraphQLService {
   String get serverUrl => _serverUrl;
   bool get isUsingDefaultUrl => _isUsingDefaultUrl;
   bool get allowDefaultUrl => _allowDefaultUrl;
+  bool get isInitialized => _isInitialized;
+  
+  // Constructor now returns a Future to ensure initialization completes
+  GraphQLService() {
+    // Start the initialization process
+    _initializeClient();
+    print('? GraphQL Service: Initialized with URL: $_serverUrl (initialization in progress)');
+  }
   
   // Method to change the server URL dynamically
   Future<void> setServerUrl(String newUrl) async {
@@ -73,6 +82,77 @@ class GraphQLService {
     await prefs.setBool('allow_default_url', allow);
     
     print('? GraphQL Service: Default URL allowed: $_allowDefaultUrl');
+  }
+
+  // Make sure client is initialized before any operations
+  Future<void> ensureInitialized() async {
+    if (!_isInitialized) {
+      await _initializeClient();
+    }
+  }
+  
+  Future<void> _initializeClient() async {
+    if (_isInitialized) return;
+    
+    try {
+      print('? GraphQL Service: Starting client initialization');
+      // Try to load saved URL from SharedPreferences
+      final prefs = await SharedPreferences.getInstance();
+      final savedUrl = prefs.getString('graphql_server_url');
+      
+      // Load saved allowDefaultUrl preference
+      _allowDefaultUrl = prefs.getBool('allow_default_url') ?? false;
+      
+      if (savedUrl != null && savedUrl.isNotEmpty) {
+        print('? GraphQL Service: Found saved server URL: $savedUrl');
+        
+        // Update internal variables
+        _serverUrl = savedUrl;
+        _isUsingDefaultUrl = (savedUrl == _defaultUrl);
+        
+        // Create a new client with the saved URL
+        final httpLink = HttpLink(_serverUrl);
+        _client = GraphQLClient(
+          link: httpLink,
+          cache: GraphQLCache(),
+          queryRequestTimeout: const Duration(seconds: 30),
+        );
+        
+        print('? GraphQL Service: Initialized with saved server URL: $_serverUrl');
+        
+        // Verify the client is using the correct URL
+        if (_client.link is HttpLink) {
+          final link = _client.link as HttpLink;
+          final uri = link.uri.toString();
+          print('? GraphQL Service: Client URI: $uri');
+          
+          if (uri != _serverUrl) {
+            print('? GraphQL Service: WARNING - URL mismatch, recreating client');
+            // Force recreation of client with correct URL
+            _client = GraphQLClient(
+              link: HttpLink(_serverUrl),
+              cache: GraphQLCache(),
+              queryRequestTimeout: const Duration(seconds: 30),
+            );
+          }
+        }
+      } else {
+        print('? GraphQL Service: No saved server URL found, using default: $_defaultUrl');
+        // By default, don't allow using the default URL without explicit permission
+        _allowDefaultUrl = false;
+        await prefs.setBool('allow_default_url', false);
+      }
+      
+      print('? GraphQL Service: Initialized with server URL: $_serverUrl (using default: $_isUsingDefaultUrl, allow default: $_allowDefaultUrl)');
+      _isInitialized = true;
+    } catch (e) {
+      print('? GraphQL Service: Error initializing client: $e');
+      // We already have a default client initialized, so we can continue
+      // But make sure we don't allow using default URL without permission
+      _allowDefaultUrl = false;
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('allow_default_url', false);
+    }
   }
 
   // Generic method to handle retries for GraphQL operations
@@ -186,72 +266,10 @@ class GraphQLService {
     return "${datePart}T${timePart}${offsetString}";
   }
 
-  GraphQLService() {
-    // Initialize with saved URL or default
-    _initializeClient();
-  }
-  
-  Future<void> _initializeClient() async {
-    try {
-      // Try to load saved URL from SharedPreferences
-      final prefs = await SharedPreferences.getInstance();
-      final savedUrl = prefs.getString('graphql_server_url');
-      
-      // Load saved allowDefaultUrl preference
-      _allowDefaultUrl = prefs.getBool('allow_default_url') ?? false;
-      
-      if (savedUrl != null && savedUrl.isNotEmpty) {
-        print('? GraphQL Service: Found saved server URL: $savedUrl');
-        
-        // Update internal variables
-        _serverUrl = savedUrl;
-        _isUsingDefaultUrl = (savedUrl == _defaultUrl);
-        
-        // Create a new client with the saved URL
-        final httpLink = HttpLink(_serverUrl);
-        _client = GraphQLClient(
-          link: httpLink,
-          cache: GraphQLCache(),
-          queryRequestTimeout: const Duration(seconds: 30),
-        );
-        
-        print('? GraphQL Service: Initialized with saved server URL: $_serverUrl');
-        
-        // Verify the client is using the correct URL
-        if (_client.link is HttpLink) {
-          final link = _client.link as HttpLink;
-          final uri = link.uri.toString();
-          print('? GraphQL Service: Client URI: $uri');
-          
-          if (uri != _serverUrl) {
-            print('? GraphQL Service: WARNING - URL mismatch, recreating client');
-            // Force recreation of client with correct URL
-            _client = GraphQLClient(
-              link: HttpLink(_serverUrl),
-              cache: GraphQLCache(),
-              queryRequestTimeout: const Duration(seconds: 30),
-            );
-          }
-        }
-      } else {
-        print('? GraphQL Service: No saved server URL found, using default: $_defaultUrl');
-        // By default, don't allow using the default URL without explicit permission
-        _allowDefaultUrl = false;
-        await prefs.setBool('allow_default_url', false);
-      }
-      
-      print('? GraphQL Service: Initialized with server URL: $_serverUrl (using default: $_isUsingDefaultUrl, allow default: $_allowDefaultUrl)');
-    } catch (e) {
-      print('? GraphQL Service: Error initializing client: $e');
-      // We already have a default client initialized, so we can continue
-      // But make sure we don't allow using default URL without permission
-      _allowDefaultUrl = false;
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool('allow_default_url', false);
-    }
-  }
-
   Future<List<Category>> getCategories() async {
+    // Ensure initialization
+    await ensureInitialized();
+    
     const String query = '''
       query GetCategories {
         categories {
@@ -327,6 +345,9 @@ class GraphQLService {
     int? priority,
     List<String>? tags,
   }) async {
+    // Ensure initialization
+    await ensureInitialized();
+    
     print('? GraphQL Request: getTodos(completed: $completed, categoryId: $categoryId, noCategoryOnly: $noCategoryOnly)');
     
     Map<String, dynamic> filterMap = {};
@@ -441,6 +462,9 @@ class GraphQLService {
     int? priority,
     List<String>? tags,
   }) async {
+    // Ensure initialization
+    await ensureInitialized();
+    
     print('? GraphQL Request: createTodo(title: $title, categoryId: $categoryId)');
     
     final Map<String, dynamic> inputMap = {
@@ -523,6 +547,9 @@ class GraphQLService {
   }
 
   Future<Todo> toggleTodo(String id) async {
+    // Ensure initialization
+    await ensureInitialized();
+    
     print('? GraphQL Request: toggleTodo(id: $id)');
     
     const String mutation = '''
@@ -571,6 +598,9 @@ class GraphQLService {
   }
 
   Future<bool> deleteTodo(String id) async {
+    // Ensure initialization
+    await ensureInitialized();
+    
     print('? GraphQL Request: deleteTodo(id: $id)');
     
     const String mutation = '''
@@ -613,6 +643,9 @@ class GraphQLService {
     int? priority,
     List<String>? tags,
   }) async {
+    // Ensure initialization
+    await ensureInitialized();
+    
     print('? GraphQL Request: updateTodo(id: $id, title: $title, categoryId: $categoryId)');
     
     final Map<String, dynamic> inputMap = {

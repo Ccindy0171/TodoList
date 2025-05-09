@@ -391,27 +391,53 @@ class TodoProvider with ChangeNotifier {
       _needsServerConfig = false;
       
       // Check connectivity first
-      final hasConnectivity = await _graphQLService.checkConnectivity();
-      print('? TodoProvider: Connectivity check: ${hasConnectivity ? 'SUCCESS' : 'FAILED'}');
-      
-      if (!hasConnectivity) {
-        _failedAttempts++;
-        _hasConnectivity = false;
+      try {
+        final hasConnectivity = await _graphQLService.checkConnectivity();
+        print('? TodoProvider: Connectivity check: ${hasConnectivity ? 'SUCCESS' : 'FAILED'}');
         
-        // Provide a more detailed error message
-        String serverType = _graphQLService.isUsingDefaultUrl ? "default" : "configured";
-        _error = 'Cannot connect to $serverType server. Please check your connection and server status.';
-        
-        print('? TodoProvider: loadTodos() - Connectivity check failed ($_failedAttempts attempts)');
-        
-        // If we have cached data, we can still show it
-        if (_cachedAllTodos != null && _cachedAllTodos!.isNotEmpty) {
-          print('? TodoProvider: Using cached data due to connectivity issues');
+        if (!hasConnectivity) {
+          _failedAttempts++;
+          _hasConnectivity = false;
+          
+          // Provide a more detailed error message
+          String serverType = _graphQLService.isUsingDefaultUrl ? "default" : "configured";
+          String serverUrl = _graphQLService.serverUrl;
+          _error = 'Cannot connect to $serverType server at $serverUrl. Server might be offline or unreachable.';
+          
+          print('? TodoProvider: loadTodos() - Connectivity check failed ($_failedAttempts attempts)');
+          
+          // If we have cached data, we can still show it
+          if (_cachedAllTodos != null && _cachedAllTodos!.isNotEmpty) {
+            print('? TodoProvider: Using cached data due to connectivity issues');
+            _isLoading = false;
+            notifyListeners();
+            return;
+          }
+          
           _isLoading = false;
           notifyListeners();
           return;
         }
+      } catch (e) {
+        // Detailed error for connectivity failures
+        _failedAttempts++;
+        _hasConnectivity = false;
         
+        // Extract useful parts from the exception message
+        String errorMsg = e.toString();
+        String serverUrl = _graphQLService.serverUrl;
+        
+        if (errorMsg.contains('SocketException')) {
+          _error = 'Network error connecting to $serverUrl: Host unreachable or connection refused';
+        } else if (errorMsg.contains('TimeoutException')) {
+          _error = 'Connection timed out when connecting to $serverUrl. Server might be running but responding slowly.';
+        } else if (errorMsg.contains('HandshakeException')) {
+          _error = 'SSL/TLS handshake failed with $serverUrl. Server might have invalid certificates.';
+        } else {
+          _error = 'Connection error with server $serverUrl: $errorMsg';
+        }
+        
+        print('? TodoProvider: loadTodos() - Connection error: $_error');
         _isLoading = false;
         notifyListeners();
         return;
@@ -455,7 +481,14 @@ class TodoProvider with ChangeNotifier {
         _error = null;
       } catch (e) {
         print('? TodoProvider: Error in parallel data load: $e');
-        _error = 'Error loading todos: ${e.toString()}';
+        
+        // Try to provide more helpful error messages for GraphQL errors
+        String errorMsg = e.toString();
+        if (errorMsg.contains('GraphQLError')) {
+          _error = 'GraphQL server error: ${errorMsg.replaceAll('Exception: ', '')}';
+        } else {
+          _error = 'Error loading todos: ${errorMsg.replaceAll('Exception: ', '')}';
+        }
       }
       
       // If we got here without errors, consider it a success even if some individual queries failed
@@ -463,7 +496,9 @@ class TodoProvider with ChangeNotifier {
         print('? TodoProvider: loadTodos() - All or some todo lists refreshed successfully');
       }
     } catch (e) {
-      _error = e.toString();
+      // Catch-all handler for any other errors
+      String errorMsg = e.toString().replaceAll('Exception: ', '');
+      _error = 'Unexpected error: $errorMsg';
       print('? TodoProvider: loadTodos() - Error: $_error');
     } finally {
       _isLoading = false;

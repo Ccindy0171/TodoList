@@ -13,8 +13,9 @@ void main() async {
   
   // Create and initialize the GraphQLService before the app starts
   final graphQLService = GraphQLService();
-  // Wait for initialization to complete
-  await Future.delayed(Duration(milliseconds: 500));
+  
+  // Explicitly ensure initialization is complete
+  await graphQLService.ensureInitialized();
   
   // Print the server URL that will be used
   print('? Main: Starting app with GraphQL server: ${graphQLService.serverUrl}');
@@ -33,13 +34,18 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => TodoProvider()),
-        ChangeNotifierProvider(create: (_) => CategoryProvider()),
+        // Provide GraphQLService as a value first so it's available to other providers
+        Provider.value(value: graphQLService),
+        
+        // Pass the GraphQLService instance to TodoProvider
+        ChangeNotifierProvider(create: (_) => TodoProvider(graphQLService)),
+        
+        // Pass the GraphQLService instance to CategoryProvider 
+        ChangeNotifierProvider(create: (_) => CategoryProvider(graphQLService)),
+        
         ChangeNotifierProvider(
           create: (_) => ServerDiscoveryProvider(graphQLService),
         ),
-        // Provide GraphQLService as a value
-        Provider.value(value: graphQLService),
       ],
       child: MaterialApp(
         title: 'Todo List',
