@@ -1,0 +1,18 @@
+# Use the official SurrealDB image
+FROM surrealdb/surrealdb:2.2.1
+
+# Set working directory
+WORKDIR /data
+
+# Create a volume for database persistence
+VOLUME /data
+
+# Expose the default SurrealDB port
+EXPOSE 8000
+
+# Start SurrealDB in memory mode with file persistence
+# - memory: uses in-memory storage for performance
+# - --auth: disables authentication for development
+# - --log: set logging level to info
+# - --user and --pass: sets default admin credentials
+CMD ["start", "--log", "info", "--user", "root", "--pass", "root", "file:///data/database.db"] 
