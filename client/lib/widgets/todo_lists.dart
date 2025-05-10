@@ -44,7 +44,9 @@ class TodoLists extends StatelessWidget {
               icon: Icons.folder_outlined,
               color: Colors.grey,
               count: generalTodos.length,
+              completedCount: todoProvider.getCompletedCategoryTodos('General')?.length ?? 0,
               categoryId: 'General',
+              // We don't allow deleting the General category
             ),
             
             // Display a message if no categories are found
@@ -68,13 +70,83 @@ class TodoLists extends StatelessWidget {
             ...sortedCategories.map((category) {
               // Get cached todos for this category
               final categoryTodos = todoProvider.getCategoryTodos(category.id) ?? [];
+              final completedCategoryTodos = todoProvider.getCompletedCategoryTodos(category.id) ?? [];
               
-              return CategoryListTile(
-                title: category.name,
-                icon: Icons.label_outline,
-                color: Color(int.parse(category.color.replaceAll('#', '0xFF'))),
-                count: categoryTodos.length,
-                categoryId: category.id,
+              // Check if this is a special built-in category that shouldn't be deletable
+              if (category.id == 'General' || category.name == 'General') {
+                return CategoryListTile(
+                  title: category.name,
+                  icon: Icons.label_outline,
+                  color: Color(int.parse(category.color.replaceAll('#', '0xFF'))),
+                  count: categoryTodos.length,
+                  completedCount: completedCategoryTodos.length,
+                  categoryId: category.id,
+                );
+              }
+              
+              return Dismissible(
+                key: Key(category.id),
+                // Only allow swiping from right to left (trailing to leading)
+                direction: DismissDirection.endToStart,
+                // Confirm before deleting
+                confirmDismiss: (direction) async {
+                  // Show the confirmation dialog
+                  return await showDialog<bool>(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                      title: const Text('Delete Category'),
+                      content: Text('Are you sure you want to delete the category "${category.name}"? This will not delete the tasks in this category.'),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.of(context).pop(false),
+                          child: const Text('Cancel'),
+                        ),
+                        TextButton(
+                          onPressed: () => Navigator.of(context).pop(true),
+                          child: const Text('Delete'),
+                        ),
+                      ],
+                    ),
+                  ) ?? false;
+                },
+                // When dismissed, delete the category
+                onDismissed: (direction) async {
+                  final success = await categoryProvider.deleteCategory(category.id);
+                  
+                  if (success) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('${category.name} category deleted'),
+                        backgroundColor: Colors.green,
+                      ),
+                    );
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Failed to delete ${category.name}'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
+                },
+                // Display a red background with a delete icon when swiping
+                background: Container(
+                  color: Colors.red,
+                  alignment: Alignment.centerRight,
+                  padding: const EdgeInsets.only(right: 20.0),
+                  child: const Icon(
+                    Icons.delete,
+                    color: Colors.white,
+                  ),
+                ),
+                child: CategoryListTile(
+                  title: category.name,
+                  icon: Icons.label_outline,
+                  color: Color(int.parse(category.color.replaceAll('#', '0xFF'))),
+                  count: categoryTodos.length,
+                  completedCount: completedCategoryTodos.length,
+                  categoryId: category.id,
+                ),
               );
             }).toList(),
           ],
@@ -89,6 +161,7 @@ class CategoryListTile extends StatelessWidget {
   final IconData icon;
   final Color color;
   final int count;
+  final int completedCount;
   final String categoryId;
   final bool isLoading;
   final bool hasError;
@@ -101,6 +174,7 @@ class CategoryListTile extends StatelessWidget {
     required this.color,
     required this.count,
     required this.categoryId,
+    this.completedCount = 0,
     this.isLoading = false,
     this.hasError = false,
     this.onLongPress,
@@ -172,11 +246,24 @@ class CategoryListTile extends StatelessWidget {
                   size: 20,
                 )
               else
-                Text(
-                  '$count ${count == 1 ? 'task' : 'tasks'}',
-                  style: TextStyle(
-                    color: Colors.grey[700],
-                  ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      '$count ${count == 1 ? 'task' : 'tasks'}',
+                      style: TextStyle(
+                        color: Colors.grey[700],
+                      ),
+                    ),
+                    if (completedCount > 0)
+                      Text(
+                        '$completedCount completed',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.green[700],
+                        ),
+                      ),
+                  ],
                 ),
             ],
           ),

@@ -15,6 +15,7 @@ class TodoProvider with ChangeNotifier {
   List<Todo>? _cachedCompletedTodayTodos;
   List<Todo>? _cachedGeneralTodos;
   List<Todo>? _cachedRecentlyUpdatedTasks;
+  List<Todo>? _cachedAllCompletedTodos;
   
   // Status tracking for connectivity
   bool _hasConnectivity = true;
@@ -36,6 +37,7 @@ class TodoProvider with ChangeNotifier {
   List<Todo>? get getCachedCompletedTodayTodos => _cachedCompletedTodayTodos;
   List<Todo>? get getCachedGeneralTodos => _cachedGeneralTodos;
   List<Todo>? get getCachedRecentlyUpdatedTasks => _cachedRecentlyUpdatedTasks;
+  List<Todo>? get getCachedAllCompletedTodos => _cachedAllCompletedTodos;
   
   // Connectivity status
   bool get hasConnectivity => _hasConnectivity;
@@ -54,6 +56,26 @@ class TodoProvider with ChangeNotifier {
       return _cachedAllTodos!.where((todo) => 
         todo.category != null && todo.category!.id == categoryId
       ).toList();
+    }
+    
+    return null;
+  }
+
+  // Get completed todos for a specific category
+  List<Todo>? getCompletedCategoryTodos(String categoryId) {
+    // For other categories, filter the cached all completed todos by category ID
+    if (_cachedAllCompletedTodos != null) {
+      if (categoryId == 'General') {
+        // For General category, return todos with no category
+        return _cachedAllCompletedTodos!.where((todo) => 
+          todo.category == null
+        ).toList();
+      } else {
+        // For specific categories
+        return _cachedAllCompletedTodos!.where((todo) => 
+          todo.category != null && todo.category!.id == categoryId
+        ).toList();
+      }
     }
     
     return null;
@@ -475,6 +497,10 @@ class TodoProvider with ChangeNotifier {
             print('? TodoProvider: Error loading recently updated tasks: $e');
             return <Todo>[];
           }),
+          getAllCompletedTodos().catchError((e) {
+            print('? TodoProvider: Error loading all completed todos: $e');
+            return <Todo>[];
+          }),
         ], eagerError: false);
         
         print('? TodoProvider: Parallel data load completed with ${futures.length} results');
@@ -552,9 +578,14 @@ class TodoProvider with ChangeNotifier {
 
   Future<List<Todo>> getAllCompletedTodos() async {
     print('? TodoProvider: getAllCompletedTodos() - Fetching all completed tasks');
-    return await _graphQLService.getTodos(
+    final todos = await _graphQLService.getTodos(
       completed: true, // Explicitly request completed tasks
     );
+    
+    // Update cache
+    _cachedAllCompletedTodos = todos;
+    
+    return todos;
   }
 
   Future<List<Todo>> getCompletedTodosByDateRange(DateTime start, DateTime end) async {

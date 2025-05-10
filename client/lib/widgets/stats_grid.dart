@@ -72,6 +72,7 @@ class StatsGrid extends StatelessWidget {
         final todayCount = todoProvider.getCachedTodayTodos?.length ?? 0;
         final plannedCount = todoProvider.getCachedUpcomingTodos?.length ?? 0;
         final allCount = todoProvider.getCachedAllTodos?.length ?? 0;
+        final completedCount = todoProvider.getCachedAllCompletedTodos?.length ?? 0;
         
         return Column(
           children: [
@@ -120,7 +121,8 @@ class StatsGrid extends StatelessWidget {
                     'Completed',
                     Icons.check_circle,
                     Colors.purple,
-                    hasCounter: false,
+                    count: completedCount,
+                    isLoading: isLoading,
                     onTap: () {
                       Navigator.push(
                         context,
@@ -264,6 +266,7 @@ class StatsGrid extends StatelessWidget {
     final todayCount = todoProvider.getCachedTodayTodos?.length ?? 0;
     final plannedCount = todoProvider.getCachedUpcomingTodos?.length ?? 0;
     final allCount = todoProvider.getCachedAllTodos?.length ?? 0;
+    final completedCount = todoProvider.getCachedAllCompletedTodos?.length ?? 0;
     
     return Column(
       children: [
@@ -305,7 +308,7 @@ class StatsGrid extends StatelessWidget {
                 'Completed',
                 Icons.check_circle,
                 Colors.purple,
-                hasCounter: false,
+                count: completedCount,
               ),
             ),
           ],

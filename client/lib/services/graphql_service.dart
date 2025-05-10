@@ -334,6 +334,31 @@ class GraphQLService {
     return Category.fromJson(result.data?['createCategory']);
   }
 
+  Future<bool> deleteCategory(String id) async {
+    const String mutation = '''
+      mutation DeleteCategory(\$id: ID!) {
+        deleteCategory(id: \$id)
+      }
+    ''';
+
+    final variables = {
+      'id': id,
+    };
+
+    final result = await _client.mutate(
+      MutationOptions(
+        document: gql(mutation),
+        variables: variables,
+      ),
+    );
+
+    if (result.hasException) {
+      throw Exception(result.exception.toString());
+    }
+
+    return result.data?['deleteCategory'] ?? false;
+  }
+
   Future<List<Todo>> getTodos({
     bool? completed,
     String? categoryId,

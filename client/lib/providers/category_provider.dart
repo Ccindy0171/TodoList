@@ -121,4 +121,34 @@ class CategoryProvider with ChangeNotifier {
     
     return category;
   }
+  
+  Future<bool> deleteCategory(String id) async {
+    print('? CategoryProvider: deleteCategory(id: $id)');
+    
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+    
+    try {
+      final success = await _graphQLService.deleteCategory(id);
+      
+      if (success) {
+        // Remove the category from the local list
+        _categories.removeWhere((category) => category.id == id);
+        print('? CategoryProvider: Category deleted successfully');
+      } else {
+        print('? CategoryProvider: Failed to delete category');
+        _error = 'Failed to delete category';
+      }
+      
+      return success;
+    } catch (e) {
+      _error = e.toString();
+      print('? CategoryProvider: Error deleting category - $_error');
+      return false;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
 } 

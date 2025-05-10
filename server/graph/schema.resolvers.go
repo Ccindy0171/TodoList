@@ -432,10 +432,62 @@ func (r *mutationResolver) UpdateCategory(ctx context.Context, id string, input 
 
 // DeleteCategory is the resolver for the deleteCategory field.
 func (r *mutationResolver) DeleteCategory(ctx context.Context, id string) (bool, error) {
-	_, err := database.DB.Delete(id)
+	// First, check if the category exists
+	catResult, err := database.DB.Query("SELECT * FROM category WHERE id = $id", map[string]interface{}{
+		"id": id,
+	})
+	if err != nil {
+		return false, fmt.Errorf("failed to fetch category: %v", err)
+	}
+
+	categories, err := surrealdb.SmartUnmarshal[[]*model.Category](catResult, nil)
+	if err != nil {
+		return false, fmt.Errorf("failed to unmarshal category: %v", err)
+	}
+
+	if len(categories) == 0 {
+		return false, fmt.Errorf("category not found with id: %s", id)
+	}
+
+	// Get the category name for logging
+	categoryName := categories[0].Name
+	fmt.Printf("? Deleting category: %s (ID: %s)\n", categoryName, id)
+
+	// Find all todos that reference this category
+	todosQuery := fmt.Sprintf("SELECT * FROM todo WHERE categoryId = %s", id)
+	todosResult, err := database.DB.Query(todosQuery, nil)
+	if err != nil {
+		return false, fmt.Errorf("failed to fetch todos for category: %v", err)
+	}
+
+	todos, err := surrealdb.SmartUnmarshal[[]*model.Todo](todosResult, nil)
+	if err != nil {
+		return false, fmt.Errorf("failed to unmarshal todos: %v", err)
+	}
+
+	fmt.Printf("? Found %d todos referencing category %s\n", len(todos), id)
+
+	// Update all todos to remove the category reference
+	if len(todos) > 0 {
+		updateQuery := fmt.Sprintf("UPDATE todo SET categoryId = NULL, updatedAt = <datetime>'%s' WHERE categoryId = %s", 
+			time.Now().Format(time.RFC3339), id)
+		
+		fmt.Printf("? Executing update query: %s\n", updateQuery)
+		_, err := database.DB.Query(updateQuery, nil)
+		if err != nil {
+			return false, fmt.Errorf("failed to update todos: %v", err)
+		}
+		
+		fmt.Printf("? Successfully removed category reference from %d todos\n", len(todos))
+	}
+
+	// Now delete the category
+	_, err = database.DB.Delete(id)
 	if err != nil {
 		return false, fmt.Errorf("failed to delete category: %v", err)
 	}
+	
+	fmt.Printf("? Successfully deleted category: %s\n", categoryName)
 	return true, nil
 }
 
