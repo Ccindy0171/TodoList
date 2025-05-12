@@ -1,9 +1,11 @@
 # Todo List
 
 ## Setup
+
 Using Surrealist Desktop, start serving a local database at `localhost:8000`. Create a namespace within called `TodoList` and a database within that called `TodoList`. Add a user for the database with username `user` and password `password`.
 
 Then, go to the server directory and run `go run server.go`, you should get the following output:
+
 ```
 Setting up databse...
 Loading env file...
