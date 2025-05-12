@@ -7,7 +7,10 @@ import '../widgets/add_task_dialog.dart';
 import '../providers/todo_provider.dart';
 import '../providers/category_provider.dart';
 import '../services/graphql_service.dart';
+import '../l10n/app_localizations.dart';
 import 'server_settings_page.dart';
+import 'search_page.dart';
+import 'settings_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -70,8 +73,8 @@ class _HomePageState extends State<HomePage> {
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Cannot connect to server'),
+          SnackBar(
+            content: Text(AppLocalizations.of(context).cannotConnectToServer),
             backgroundColor: Colors.red,
           ),
         );
@@ -122,6 +125,7 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     final GraphQLService graphQLService = Provider.of<GraphQLService>(context, listen: false);
+    final localizations = AppLocalizations.of(context);
     
     // Show a full-screen loader during initial loading
     if (_initialLoading) {
@@ -133,7 +137,7 @@ class _HomePageState extends State<HomePage> {
               const CircularProgressIndicator(),
               const SizedBox(height: 16),
               Text(
-                'Loading Todo Lists...',
+                localizations.loading,
                 style: TextStyle(color: Colors.grey[600]),
               ),
             ],
@@ -144,15 +148,34 @@ class _HomePageState extends State<HomePage> {
     
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Todo List'),
+        title: Text(localizations.appTitle),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: () => _refreshData(),
-            tooltip: 'Refresh Data',
+            icon: const Icon(Icons.search),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const SearchPage(),
+                ),
+              );
+            },
+            tooltip: localizations.search,
           ),
           IconButton(
             icon: const Icon(Icons.settings),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const SettingsPage(),
+                ),
+              );
+            },
+            tooltip: localizations.settings,
+          ),
+          IconButton(
+            icon: const Icon(Icons.dns),
             onPressed: () {
               // Reset the allowDefaultUrl preference when manually configuring server
               Provider.of<GraphQLService>(context, listen: false).setAllowDefaultUrl(false);
@@ -178,7 +201,7 @@ class _HomePageState extends State<HomePage> {
                 print('? HomePage: Returned from settings, using server: ${graphQLService.serverUrl}');
               });
             },
-            tooltip: 'Server Settings',
+            tooltip: localizations.serverSettings,
           ),
         ],
       ),
@@ -190,13 +213,13 @@ class _HomePageState extends State<HomePage> {
           }
           
           if (todoProvider.isLoading || categoryProvider.isLoading) {
-            return const Center(
+            return Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  CircularProgressIndicator(),
-                  SizedBox(height: 16),
-                  Text('Refreshing data...'),
+                  const CircularProgressIndicator(),
+                  const SizedBox(height: 16),
+                  Text(localizations.refreshingData),
                 ],
               ),
             );
@@ -214,7 +237,7 @@ class _HomePageState extends State<HomePage> {
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    'Error: ${todoProvider.error}',
+                    '${localizations.error}: ${todoProvider.error}',
                     style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
                     textAlign: TextAlign.center,
                   ),
@@ -222,7 +245,7 @@ class _HomePageState extends State<HomePage> {
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 32.0),
                     child: Text(
-                      'The app couldn\'t connect to the configured server. Please check your network connection and server status, or configure a different server.',
+                      localizations.connectionError,
                       textAlign: TextAlign.center,
                       style: TextStyle(color: Colors.grey[700]),
                     ),
@@ -233,13 +256,13 @@ class _HomePageState extends State<HomePage> {
                     children: [
                       ElevatedButton.icon(
                         icon: const Icon(Icons.refresh),
-                        label: const Text('Try Again'),
+                        label: Text(localizations.tryAgain),
                         onPressed: () {
                           // Show a loading indicator to give feedback
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Attempting to reconnect...'),
-                              duration: Duration(seconds: 2),
+                            SnackBar(
+                              content: Text(localizations.attemptingReconnect),
+                              duration: const Duration(seconds: 2),
                             ),
                           );
                           
@@ -248,41 +271,21 @@ class _HomePageState extends State<HomePage> {
                             _initialLoading = true;
                           });
                           
-                          // Clear error state and do a complete refresh
-                          final todoProvider = Provider.of<TodoProvider>(context, listen: false);
-                          todoProvider.clearError();
-                          
-                          // Reload all data
-                          _loadInitialData().then((_) {
-                            // Check if still mounted after async operation
-                            if (mounted) {
-                              // If we still have an error after refresh, show a message
-                              if (todoProvider.error != null) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text('Still unable to connect: ${todoProvider.error}'),
-                                    backgroundColor: Colors.red,
-                                    duration: const Duration(seconds: 3),
-                                  ),
-                                );
-                              }
-                            }
-                          });
+                          // Try loading data again
+                          _loadInitialData();
                         },
                       ),
                       const SizedBox(width: 16),
-                      ElevatedButton.icon(
+                      OutlinedButton.icon(
                         icon: const Icon(Icons.settings),
-                        label: const Text('Configure Server'),
+                        label: Text(localizations.serverSettings),
                         onPressed: () {
-                          // Reset the allowDefaultUrl preference when manually configuring server
-                          Provider.of<GraphQLService>(context, listen: false).setAllowDefaultUrl(false);
                           Navigator.of(context).push(
                             MaterialPageRoute(
                               builder: (context) => const ServerSettingsPage(),
                             ),
                           ).then((_) {
-                            // After returning from settings page, try loading data again
+                            // Reload data
                             _loadInitialData();
                           });
                         },
@@ -300,7 +303,7 @@ class _HomePageState extends State<HomePage> {
               padding: const EdgeInsets.all(16.0),
               children: [
                 Text(
-                  'Connected to: ${graphQLService.serverUrl}',
+                  '${localizations.connectedTo} ${graphQLService.serverUrl}',
                   style: Theme.of(context).textTheme.bodySmall,
                   textAlign: TextAlign.center,
                 ),
@@ -313,7 +316,7 @@ class _HomePageState extends State<HomePage> {
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Text(
-                      'Using Default Connection',
+                      localizations.usingDefaultConnection,
                       style: TextStyle(
                         fontSize: 12,
                         color: Colors.amber[800],
@@ -329,7 +332,7 @@ class _HomePageState extends State<HomePage> {
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Text(
-                      'Using Configured Server',
+                      localizations.usingConfiguredServer,
                       style: TextStyle(
                         fontSize: 12,
                         color: Colors.green[800],
@@ -347,12 +350,16 @@ class _HomePageState extends State<HomePage> {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
+          print('? HomePage: Add task button pressed');
           showDialog(
             context: context,
             builder: (context) => const AddTaskDialog(),
           ).then((result) {
+            print('? HomePage: AddTaskDialog closed with result: $result');
             if (result == true) {
-              _refreshData(); // Refresh data if a task was created
+              print('? HomePage: Refreshing data after successful task creation');
+              // Do a full refresh after task creation
+              _refreshData(); 
             }
           });
         },
@@ -363,6 +370,8 @@ class _HomePageState extends State<HomePage> {
   
   // Widget to show when server configuration is needed
   Widget _buildServerConfigNeededView(BuildContext context) {
+    final localizations = AppLocalizations.of(context);
+    
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24.0),
@@ -375,39 +384,39 @@ class _HomePageState extends State<HomePage> {
               size: 80,
             ),
             const SizedBox(height: 24),
-            const Text(
-              'Server Configuration Needed',
-              style: TextStyle(
+            Text(
+              localizations.serverConfigNeeded,
+              style: const TextStyle(
                 fontSize: 22,
                 fontWeight: FontWeight.bold,
               ),
             ),
             const SizedBox(height: 16),
-            const Text(
-              'To use this app, you need to configure a connection to a GraphQL server. You can either:',
+            Text(
+              localizations.serverConfigInfo,
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 16),
+              style: const TextStyle(fontSize: 16),
             ),
             const SizedBox(height: 16),
-            const ListTile(
-              leading: Icon(Icons.search, color: Colors.blue),
-              title: Text('Scan for available servers on your network'),
+            ListTile(
+              leading: const Icon(Icons.search, color: Colors.blue),
+              title: Text(localizations.serverConfigScan),
               dense: true,
             ),
-            const ListTile(
-              leading: Icon(Icons.add, color: Colors.blue),
-              title: Text('Manually add a server using its IP address and port'),
+            ListTile(
+              leading: const Icon(Icons.add, color: Colors.blue),
+              title: Text(localizations.serverConfigManual),
               dense: true,
             ),
-            const ListTile(
-              leading: Icon(Icons.phonelink, color: Colors.blue),
-              title: Text('Use the built-in development server (if available)'),
+            ListTile(
+              leading: const Icon(Icons.phonelink, color: Colors.blue),
+              title: Text(localizations.serverConfigDev),
               dense: true,
             ),
             const SizedBox(height: 24),
             ElevatedButton.icon(
               icon: const Icon(Icons.settings),
-              label: const Text('Configure Server'),
+              label: Text(localizations.configureServer),
               style: ElevatedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
               ),
@@ -427,7 +436,7 @@ class _HomePageState extends State<HomePage> {
             const SizedBox(height: 16),
             TextButton.icon(
               icon: const Icon(Icons.developer_mode),
-              label: const Text('Try Default Connection'),
+              label: Text(localizations.tryDefaultConnection),
               onPressed: () {
                 // Use the default connection
                 _refreshData(forceDefaultConnection: true);

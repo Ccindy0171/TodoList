@@ -4,6 +4,8 @@ import '../providers/todo_provider.dart';
 import '../providers/category_provider.dart';
 import '../models/category.dart' as models;
 import 'package:intl/intl.dart';
+import '../l10n/app_localizations.dart';
+import '../widgets/category_selector.dart';
 
 class AddTaskDialog extends StatefulWidget {
   final String? categoryId;
@@ -24,13 +26,17 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _locationController = TextEditingController();
+  final _tagController = TextEditingController();
   final _newCategoryController = TextEditingController();
   DateTime? _selectedDate;
   TimeOfDay? _selectedTime;
-  String? _selectedCategoryId;
+  List<String> _selectedCategoryIds = [];
   bool _isCreatingNewCategory = false;
   String _selectedColor = '#FF0000';
   bool _isLoading = false;
+  int _priority = 0;
+  bool _isSubmitting = false;
+  List<String> _tags = [];
 
   // We'll now use the predefined colors from CategoryProvider instead
   List<String> _availableColors = [];
@@ -42,7 +48,7 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
     
     // Set the initial categoryId if provided
     if (widget.categoryId != null) {
-      _selectedCategoryId = widget.categoryId;
+      _selectedCategoryIds.add(widget.categoryId!);
     }
     
     // Set the initial date if provided, otherwise use current date
@@ -80,6 +86,7 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
     _titleController.dispose();
     _descriptionController.dispose();
     _locationController.dispose();
+    _tagController.dispose();
     _newCategoryController.dispose();
     super.dispose();
   }
@@ -128,7 +135,7 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
       if (newCategory != null) {
         print('? AddTaskDialog: Created new category: ${newCategory.id} - ${newCategory.name}');
         setState(() {
-          _selectedCategoryId = newCategory.id;
+          _selectedCategoryIds.add(newCategory.id);
           _isCreatingNewCategory = false;
           _newCategoryController.clear();
           _isLoading = false;
@@ -144,16 +151,47 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
     }
   }
 
-  void _submitForm() {
-    if (_formKey.currentState!.validate()) {
+  void _addTag() {
+    if (_tagController.text.trim().isNotEmpty) {
+      setState(() {
+        _tags.add(_tagController.text.trim());
+        _tagController.clear();
+      });
+    }
+  }
+
+  void _removeTag(String tag) {
+    setState(() {
+      _tags.remove(tag);
+    });
+  }
+
+  void _submitForm() async {
+    print('? AddTaskDialog: _submitForm() - Starting form submission');
+    
+    // Use form validation through the formKey
+    if (!_formKey.currentState!.validate()) {
+      print('? AddTaskDialog: Form validation failed');
+      return;
+    }
+    
+    // Additionally check for required date and time
       if (_selectedDate == null || _selectedTime == null) {
+      print('? AddTaskDialog: Missing date or time');
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Please select a due date and time')),
+        SnackBar(content: Text(AppLocalizations.of(context).dueDate + ' ' + 
+                              AppLocalizations.of(context).dueTime + ' ' + 
+                              AppLocalizations.of(context).pleaseEnterTitle)),
         );
         return;
       }
 
-      DateTime dueDate = DateTime(
+    setState(() {
+      _isSubmitting = true;
+    });
+    
+    // Combine date and time into a single DateTime
+    final combinedDateTime = DateTime(
         _selectedDate!.year,
         _selectedDate!.month,
         _selectedDate!.day,
@@ -161,30 +199,53 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
         _selectedTime!.minute,
       );
 
-      print('? AddTaskDialog: Creating task with title: ${_titleController.text}, categoryId: $_selectedCategoryId');
+    try {
+      print('? AddTaskDialog: Creating task with title: "${_titleController.text.trim()}"');
+      print('? AddTaskDialog: Categories: $_selectedCategoryIds');
+      print('? AddTaskDialog: Due date: $combinedDateTime');
       
-      // CategoryId handling - pass explicit null for no category
-      // This ensures we don't pass 'General' string as a categoryId
-      String? categoryId = _selectedCategoryId;
-      if (categoryId == 'General') {
-        categoryId = null;
-        print('? AddTaskDialog: Converting General category to null');
+      // Get provider without listening to avoid rebuild during operation
+      final todoProvider = Provider.of<TodoProvider>(context, listen: false);
+      
+      // Use the provider to create the task
+      await todoProvider.createTodo(
+        title: _titleController.text.trim(),
+        description: _descriptionController.text.trim().isNotEmpty 
+            ? _descriptionController.text.trim() 
+            : null,
+        categoryIds: _selectedCategoryIds.isNotEmpty ? _selectedCategoryIds : null,
+        dueDate: combinedDateTime,
+        location: _locationController.text.trim().isNotEmpty 
+            ? _locationController.text.trim() 
+            : null,
+        priority: _priority > 0 ? _priority : null,
+        tags: _tags.isNotEmpty ? _tags : null,
+      );
+      
+      print('? AddTaskDialog: Task created successfully, closing dialog');
+      
+      // Close the dialog and return success
+      if (mounted) {
+        Navigator.of(context).pop(true);
       }
-
-      context.read<TodoProvider>().createTodo(
-        title: _titleController.text,
-        description: _descriptionController.text.isEmpty ? null : _descriptionController.text,
-        categoryId: categoryId,
-        dueDate: dueDate,
-        location: _locationController.text.isEmpty ? null : _locationController.text,
-      ).then((_) {
-        Navigator.of(context).pop(true); // Return true to indicate a task was created
-      });
+    } catch (e) {
+      print('? AddTaskDialog: ERROR creating task: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+        setState(() {
+          _isSubmitting = false;
+        });
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final categoryProvider = Provider.of<CategoryProvider>(context);
+    final localizations = AppLocalizations.of(context);
+    
     return Dialog(
       insetPadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 24.0),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -197,9 +258,9 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Text(
-                  'Add New Task',
-                  style: TextStyle(
+                Text(
+                  localizations.addNewTask,
+                  style: const TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.bold,
                   ),
@@ -208,13 +269,13 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
                 const SizedBox(height: 16),
                 TextFormField(
                   controller: _titleController,
-                  decoration: const InputDecoration(
-                    labelText: 'Title',
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: localizations.title,
+                    border: const OutlineInputBorder(),
                   ),
                   validator: (value) {
                     if (value == null || value.isEmpty) {
-                      return 'Please enter a title';
+                      return localizations.pleaseEnterTitle;
                     }
                     return null;
                   },
@@ -222,19 +283,19 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
                 const SizedBox(height: 16),
                 TextFormField(
                   controller: _descriptionController,
-                  decoration: const InputDecoration(
-                    labelText: 'Description (optional)',
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: localizations.descriptionOptional,
+                    border: const OutlineInputBorder(),
                   ),
                   maxLines: 3,
                 ),
                 const SizedBox(height: 16),
                 TextFormField(
                   controller: _locationController,
-                  decoration: const InputDecoration(
-                    labelText: 'Location (optional)',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.location_on_outlined),
+                  decoration: InputDecoration(
+                    labelText: localizations.locationOptional,
+                    border: const OutlineInputBorder(),
+                    prefixIcon: const Icon(Icons.location_on_outlined),
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -258,55 +319,16 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         if (!_isCreatingNewCategory) ...[
-                          DropdownButtonFormField<String?>(
-                            value: _selectedCategoryId,
-                            decoration: const InputDecoration(
-                              labelText: 'Category (optional)',
-                              border: OutlineInputBorder(),
-                              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 16),
-                            ),
-                            isExpanded: true,
-                            items: [
-                              const DropdownMenuItem<String?>(
-                                value: null,
-                                child: Text('None'),
-                              ),
-                              ...sortedCategories.map((category) {
-                                return DropdownMenuItem<String?>(
-                                  value: category.id,
-                                  child: Row(
-                                    children: [
-                                      Container(
-                                        width: 16,
-                                        height: 16,
-                                        decoration: BoxDecoration(
-                                          color: Color(
-                                            int.parse(
-                                              category.color.replaceAll('#', '0xFF'),
-                                            ),
-                                          ),
-                                          shape: BoxShape.circle,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Flexible(
-                                        child: Text(
-                                          category.name,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              }).toList(),
-                            ],
-                            onChanged: (value) {
+                          CategorySelector(
+                            categories: sortedCategories,
+                            selectedIds: _selectedCategoryIds,
+                            isLoading: _isLoading,
+                            onChanged: (selectedIds) {
                               setState(() {
-                                _selectedCategoryId = value;
-                                print('Selected category: $_selectedCategoryId');
+                                _selectedCategoryIds = selectedIds;
+                                print('Selected categories: $_selectedCategoryIds');
                               });
                             },
-                            hint: const Text('Select a category (optional)'),
                           ),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -315,7 +337,7 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
                                 onPressed: () {
                                   categoryProvider.loadCategories();
                                 },
-                                child: const Text('Refresh Categories'),
+                                child: Text(localizations.refreshCategories),
                                 style: TextButton.styleFrom(
                                   padding: const EdgeInsets.symmetric(horizontal: 8),
                                 ),
@@ -326,7 +348,7 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
                                     _isCreatingNewCategory = true;
                                   });
                                 },
-                                child: const Text('New Category'),
+                                child: Text(localizations.newCategory),
                                 style: TextButton.styleFrom(
                                   padding: const EdgeInsets.symmetric(horizontal: 8),
                                 ),
@@ -336,18 +358,18 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
                         ] else ...[
                           TextFormField(
                             controller: _newCategoryController,
-                            decoration: const InputDecoration(
-                              labelText: 'New Category Name',
-                              border: OutlineInputBorder(),
+                            decoration: InputDecoration(
+                              labelText: localizations.categoryName,
+                              border: const OutlineInputBorder(),
                             ),
                           ),
                           const SizedBox(height: 16),
                           DropdownButtonFormField<String>(
                             value: _selectedColor,
-                            decoration: const InputDecoration(
-                              labelText: 'Category Color',
-                              border: OutlineInputBorder(),
-                              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                            decoration: InputDecoration(
+                              labelText: localizations.categoryColor,
+                              border: const OutlineInputBorder(),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
                             ),
                             isExpanded: true,
                             items: _availableColors.map((color) {
@@ -393,12 +415,12 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
                                     _newCategoryController.clear();
                                   });
                                 },
-                                child: const Text('Cancel'),
+                                child: Text(localizations.cancel),
                               ),
                               const SizedBox(width: 8),
                               ElevatedButton(
                                 onPressed: _createNewCategory,
-                                child: const Text('Create'),
+                                child: Text(localizations.createCategory),
                               ),
                             ],
                           ),
@@ -418,7 +440,7 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
                       label: Text(
                         _selectedDate != null
                             ? DateFormat('yyyy-MM-dd').format(_selectedDate!)
-                            : 'Select Date',
+                            : localizations.selectDate,
                       ),
                       style: TextButton.styleFrom(padding: EdgeInsets.zero),
                     ),
@@ -428,16 +450,16 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
                       label: Text(
                         _selectedTime != null
                             ? _selectedTime!.format(context)
-                            : 'Select Time',
+                            : localizations.selectTime,
                       ),
                       style: TextButton.styleFrom(padding: EdgeInsets.zero),
                     ),
                   ],
                 ),
                 if (_selectedDate == null || _selectedTime == null)
-                  const Text(
-                    'Due date is required',
-                    style: TextStyle(color: Colors.red),
+                  Text(
+                    localizations.dueDate + ' ' + localizations.dueTime + ' ' + localizations.pleaseEnterTitle,
+                    style: const TextStyle(color: Colors.red),
                   ),
                 const SizedBox(height: 24),
                 Row(
@@ -445,11 +467,11 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
                   children: [
                     TextButton(
                       onPressed: () => Navigator.of(context).pop(),
-                      child: const Text('Cancel'),
+                      child: Text(localizations.cancel),
                     ),
                     ElevatedButton(
                       onPressed: _submitForm,
-                      child: const Text('Add Task'),
+                      child: Text(localizations.addTask),
                     ),
                   ],
                 ),

@@ -22,6 +22,9 @@ class TodoProvider with ChangeNotifier {
   int _failedAttempts = 0;
   bool _needsServerConfig = false;
 
+  // Cache for todos by category
+  final Map<String, List<Todo>> _cachedTodosByCategory = {};
+
   // Constructor that accepts the GraphQLService instance
   TodoProvider([GraphQLService? graphQLService]) : _graphQLService = graphQLService ?? GraphQLService() {
     print('? TodoProvider: Initialized with server URL: ${_graphQLService.serverUrl}');
@@ -46,16 +49,28 @@ class TodoProvider with ChangeNotifier {
   
   // Get cached todos for a specific category
   List<Todo>? getCategoryTodos(String categoryId) {
-    // For the General category, return general todos (no category)
     if (categoryId == 'General') {
       return _cachedGeneralTodos;
     }
     
-    // For other categories, filter the cached all todos by category ID
     if (_cachedAllTodos != null) {
-      return _cachedAllTodos!.where((todo) => 
-        todo.category != null && todo.category!.id == categoryId
-      ).toList();
+      return _cachedAllTodos!.where((todo) {
+        bool isMatch = false;
+        // Check if this category is in the todo's categories array
+        if (todo.categories != null && todo.categories!.isNotEmpty) {
+          for (final categoryInList in todo.categories!) {
+            if (categoryInList.id == categoryId) {
+              isMatch = true;
+              break;
+            }
+          }
+        }
+        // If not found in the list, or if the list is empty, check the legacy single category field
+        if (!isMatch && todo.category != null && todo.category!.id == categoryId) {
+          isMatch = true;
+        }
+        return isMatch;
+      }).toList();
     }
     
     return null;
@@ -63,18 +78,29 @@ class TodoProvider with ChangeNotifier {
 
   // Get completed todos for a specific category
   List<Todo>? getCompletedCategoryTodos(String categoryId) {
-    // For other categories, filter the cached all completed todos by category ID
     if (_cachedAllCompletedTodos != null) {
       if (categoryId == 'General') {
-        // For General category, return todos with no category
         return _cachedAllCompletedTodos!.where((todo) => 
-          todo.category == null
+          todo.category == null && (todo.categories == null || todo.categories!.isEmpty)
         ).toList();
       } else {
-        // For specific categories
-        return _cachedAllCompletedTodos!.where((todo) => 
-          todo.category != null && todo.category!.id == categoryId
-        ).toList();
+        return _cachedAllCompletedTodos!.where((todo) {
+          bool isMatch = false;
+          // Check if this category is in the todo's categories array
+          if (todo.categories != null && todo.categories!.isNotEmpty) {
+            for (final categoryInList in todo.categories!) {
+              if (categoryInList.id == categoryId) {
+                isMatch = true;
+                break;
+              }
+            }
+          }
+          // If not found in the list, or if the list is empty, check the legacy single category field
+          if (!isMatch && todo.category != null && todo.category!.id == categoryId) {
+            isMatch = true;
+          }
+          return isMatch;
+        }).toList();
       }
     }
     
@@ -183,21 +209,20 @@ class TodoProvider with ChangeNotifier {
 
   Future<List<Todo>> getTodosByCategory(String categoryId) async {
     print('? Getting todos for category: $categoryId');
+    
     try {
       final bool isGeneral = categoryId == 'General';
       
-      // For General category, we want todos with no category
+      // For General category, fetch tasks without a category
+      // For specific categories, use categoryIds to find all matching tasks
       final result = await _graphQLService.getTodos(
-        completed: false,
-        categoryId: isGeneral ? 'none' : categoryId,
-        noCategoryOnly: isGeneral ? true : null,
+        noCategoryOnly: isGeneral,
+        categoryIds: isGeneral ? null : [categoryId],
       );
       
       print('? Successfully fetched ${result.length} todos for category: $categoryId');
-      // Log each todo for debugging
-      for (final todo in result) {
-        print('? Todo: id=${todo.id}, title=${todo.title}, category=${todo.category?.name ?? 'none'}');
-      }
+      
+      _cachedTodosByCategory[categoryId] = result;
       
       return result;
     } catch (e) {
@@ -209,24 +234,36 @@ class TodoProvider with ChangeNotifier {
   Future<void> createTodo({
     required String title,
     String? description,
-    String? categoryId,
+    String? categoryId, // Keep for backward compatibility
+    List<String>? categoryIds, // New parameter for multiple categories
     DateTime? dueDate,
     String? location,
     int? priority,
     List<String>? tags,
   }) async {
-    print('? TodoProvider: createTodo(title: $title, categoryId: $categoryId) - Started');
+    print('? TodoProvider: createTodo() - START with title: "$title"');
+    print('? TodoProvider: createTodo() - categoryId: $categoryId, categoryIds: $categoryIds');
+    print('? TodoProvider: createTodo() - dueDate: $dueDate');
+    
     _isLoading = true;
     _error = null;
     notifyListeners();
 
     try {
-      // Handle categoryId correctly - no need to transform it here, 
-      // GraphQLService will handle it properly
+      // Handle categoryIds properly
+      List<String>? finalCategoryIds = categoryIds;
+      if (finalCategoryIds == null && categoryId != null && categoryId.isNotEmpty && categoryId != 'General') {
+        // For backward compatibility - convert single categoryId to list
+        finalCategoryIds = [categoryId];
+        print('? TodoProvider: Converting single categoryId to list: $finalCategoryIds');
+      }
+      
+      // Create the todo with multiple categories
+      print('? TodoProvider: Calling GraphQL service with categoryIds: $finalCategoryIds');
       final todo = await _graphQLService.createTodo(
         title: title,
         description: description,
-        categoryId: categoryId,
+        categoryIds: finalCategoryIds,
         dueDate: dueDate,
         location: location,
         priority: priority,
@@ -235,6 +272,7 @@ class TodoProvider with ChangeNotifier {
       
       _error = null;
       print('? TodoProvider: Task created successfully: ${todo.id}');
+      print('? TodoProvider: New todo: ${todo.title}, category: ${todo.category?.name ?? "none"}');
       
       // Selectively refresh the relevant data, not everything
       if (todo.dueDate != null) {
@@ -260,11 +298,11 @@ class TodoProvider with ChangeNotifier {
       
     } catch (e) {
       _error = e.toString();
-      print('? TodoProvider: createTodo() Error: $_error');
+      print('? TodoProvider: createTodo() ERROR: $_error');
     } finally {
       _isLoading = false;
       notifyListeners();
-      print('? TodoProvider: notifyListeners() - UI update triggered after task creation');
+      print('? TodoProvider: createTodo() COMPLETE - UI update triggered');
     }
   }
 
@@ -621,63 +659,53 @@ class TodoProvider with ChangeNotifier {
     return todos;
   }
 
-  Future<void> updateTodo({
+  Future<Todo> updateTodo({
     required String id,
     required String title,
     String? description,
-    String? categoryId,
+    List<String>? categoryIds,
     required DateTime dueDate,
     String? location,
     int? priority,
     List<String>? tags,
+    bool? completed,
   }) async {
-    print('? TodoProvider: updateTodo(id: $id, title: $title) - Started');
+    print('? TodoProvider: updateTodo(id: $id, title: $title, categoryIds: $categoryIds)');
     _isLoading = true;
     _error = null;
     notifyListeners();
 
     try {
+      // Use categoryIds directly instead of just the first one
+      print('? TodoProvider: Using categoryIds: $categoryIds for update');
+      
       final todo = await _graphQLService.updateTodo(
         id: id,
         title: title,
         description: description,
-        categoryId: categoryId,
+        categoryIds: categoryIds,
         dueDate: dueDate,
         location: location,
         priority: priority,
         tags: tags,
+        completed: completed,
       );
       
+      // Reset error and loading state
       _error = null;
-      print('? TodoProvider: Task updated successfully: ${todo.id}');
+      _isLoading = false;
       
-      // Refresh data based on the updated todo
-      if (todo.dueDate != null) {
-        final now = DateTime.now();
-        final today = DateTime(now.year, now.month, now.day);
-        final tomorrow = today.add(const Duration(days: 1));
-        
-        if (todo.dueDate!.isAfter(today) && todo.dueDate!.isBefore(tomorrow)) {
-          await getTodayTodos();
-        } else if (todo.dueDate!.isAfter(tomorrow)) {
-          await getUpcomingTodos();
-        }
-      }
+      // Refresh all lists to ensure UI consistency
+      await loadTodos();
       
-      if (todo.category != null) {
-        await getTodosByCategory(todo.category!.id);
-      } else {
-        await getGeneralTodos();
-      }
+      notifyListeners();
       
-      await getAllTodos();
-      
+      return todo;
     } catch (e) {
       _error = e.toString();
-      print('? TodoProvider: updateTodo() Error: $_error');
-    } finally {
       _isLoading = false;
       notifyListeners();
+      throw e; // Rethrow to allow handling in UI
     }
   }
 
@@ -688,4 +716,4 @@ class TodoProvider with ChangeNotifier {
     notifyListeners();
     print('? TodoProvider: clearError() - Error state has been reset');
   }
-} 
+}

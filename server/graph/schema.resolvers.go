@@ -8,6 +8,7 @@ import (
 	"context"
 	"fmt"
 	"server/graph/database"
+	"server/graph/helpers"
 	"server/graph/model"
 	"strings"
 	"time"
@@ -24,27 +25,46 @@ func (r *mutationResolver) CreateTodo(ctx context.Context, input model.TodoInput
 	fmt.Printf("\n? CREATING todo with title: %s\n", input.Title)
 
 	// Build the create query
-	createQuery := fmt.Sprintf("CREATE todo SET id = '%s', title = '%s', completed = false, createdAt = <datetime>'%s', updatedAt = <datetime>'%s', dueDate = <datetime>'%s'",
+	createQuery := fmt.Sprintf("CREATE todo SET id = '%s', title = '%s', updatedAt = <datetime>'%s', dueDate = <datetime>'%s'",
 		id,
-		input.Title,
-		now.Format(time.RFC3339),
+		helpers.EscapeString(input.Title),
 		now.Format(time.RFC3339),
 		input.DueDate.Format(time.RFC3339))
 
-	// Add optional fields
-	if input.Description != nil && *input.Description != "" {
-		createQuery += fmt.Sprintf(", description = '%s'", *input.Description)
+	// Set completed field - default to false if not provided
+	if input.Completed != nil && *input.Completed {
+		createQuery += ", completed = true"
+	} else {
+		createQuery += ", completed = false"
 	}
 
-	if input.CategoryID != nil && *input.CategoryID != "" {
-		createQuery += fmt.Sprintf(", categoryId = %s", *input.CategoryID)
+	// Add createdAt
+	createQuery += fmt.Sprintf(", createdAt = <datetime>'%s'", now.Format(time.RFC3339))
+
+	// Add optional fields
+	if input.Description != nil && *input.Description != "" {
+		createQuery += fmt.Sprintf(", description = '%s'", helpers.EscapeString(*input.Description))
+	}
+
+	// Handle both categoryId and categoryIds for backward compatibility
+	if input.CategoryIds != nil && len(input.CategoryIds) > 0 {
+		// Use the first category as the primary categoryId for backward compatibility
+		categoryID := input.CategoryIds[0]
+		createQuery += fmt.Sprintf(", categoryId = '%s'", helpers.EscapeString(categoryID))
+
+		// Store the full list of category IDs
+		createQuery += fmt.Sprintf(", categoryIds = %s", helpers.FormatCategoryIdsArray(input.CategoryIds))
+	} else if input.CategoryID != nil && *input.CategoryID != "" {
+		// Legacy support for single categoryId
+		createQuery += fmt.Sprintf(", categoryId = '%s'", helpers.EscapeString(*input.CategoryID))
+		createQuery += fmt.Sprintf(", categoryIds = ['%s']", helpers.EscapeString(*input.CategoryID))
 	} else {
-		// Explicitly set categoryId to NULL if not provided
-		createQuery += ", categoryId = NULL"
+		// Explicitly set categoryId and categoryIds to NULL if not provided
+		createQuery += ", categoryId = NULL, categoryIds = []"
 	}
 
 	if input.Location != nil && *input.Location != "" {
-		createQuery += fmt.Sprintf(", location = '%s'", *input.Location)
+		createQuery += fmt.Sprintf(", location = '%s'", helpers.EscapeString(*input.Location))
 	}
 
 	if input.Priority != nil {
@@ -57,7 +77,7 @@ func (r *mutationResolver) CreateTodo(ctx context.Context, input model.TodoInput
 			if i > 0 {
 				tagsStr += ", "
 			}
-			tagsStr += fmt.Sprintf("'%s'", tag)
+			tagsStr += fmt.Sprintf("'%s'", helpers.EscapeString(tag))
 		}
 		tagsStr += "]"
 		createQuery += fmt.Sprintf(", tags = %s", tagsStr)
@@ -88,137 +108,52 @@ func (r *mutationResolver) CreateTodo(ctx context.Context, input model.TodoInput
 	todo := todos[0]
 	fmt.Printf("? Todo created successfully: %+v\n", todo)
 
-	// If there's a category, fetch it
-	var category *model.Category
-	if todo.CategoryID != nil && *todo.CategoryID != "" {
-		// fmt.Printf("? Fetching category with ID: %s\n", *todo.CategoryID)
-		catResult, err := database.DB.Query("SELECT * FROM category WHERE id = $id", map[string]interface{}{
-			"id": *todo.CategoryID,
-		})
-		if err != nil {
-			fmt.Printf("? Failed to fetch category: %v\n", err)
-			return nil, fmt.Errorf("failed to fetch category: %v", err)
-		}
-
-		categories, err := surrealdb.SmartUnmarshal[[]*model.Category](catResult, nil)
-		if err != nil {
-			fmt.Printf("? Failed to unmarshal category: %v\n", err)
-			return nil, fmt.Errorf("failed to unmarshal category: %v", err)
-		}
-		if len(categories) > 0 {
-			category = categories[0]
-			// fmt.printf("? Found category: %s\n", category.Name)
-		} else {
-			fmt.Printf("?? No category found with ID: %s\n", *todo.CategoryID)
-		}
-	} else {
-		fmt.Printf("?? No category ID provided for this todo\n")
-	}
-
+	// Build output with categories
 	todoOutput := &model.TodoOutput{
 		ID:          todo.ID,
 		Title:       todo.Title,
 		Description: todo.Description,
 		Completed:   todo.Completed,
-		Category:    category,
 		DueDate:     todo.DueDate,
 		Location:    todo.Location,
 		Priority:    todo.Priority,
 		Tags:        todo.Tags,
 		UpdatedAt:   todo.UpdatedAt,
+		Categories:  []*model.Category{},
 	}
 
-	// Final check of constructed output
-	// fmt.printf("? Created todo output: %+v\n", todoOutput)
-	return todoOutput, nil
-}
+	// Fetch categories based on categoryIds first
+	categoryIds := helpers.SafeCategoryIds(todo.CategoryIds)
+	if len(categoryIds) > 0 {
+		// Fetch all categories in one query for better performance
+		formattedCategoryIdsArray := helpers.FormatCategoryIdsArray(categoryIds)
+		catQuery := fmt.Sprintf("SELECT * FROM category WHERE id IN %s", formattedCategoryIdsArray)
 
-// UpdateTodo is the resolver for the updateTodo field.
-func (r *mutationResolver) UpdateTodo(ctx context.Context, id string, input model.TodoInput) (*model.TodoOutput, error) {
-	fmt.Printf("? Updating todo with ID: %s\n", id)
-	
-	// Build the update query
-	updateQuery := fmt.Sprintf("UPDATE %s SET updatedAt = <datetime>'%s'", 
-		id, 
-		time.Now().Format(time.RFC3339))
-	
-	// Add fields to update
-	if input.Title != "" {
-		updateQuery += fmt.Sprintf(", title = '%s'", input.Title)
-	}
-	
-	if input.Description != nil {
-		if *input.Description != "" {
-			updateQuery += fmt.Sprintf(", description = '%s'", *input.Description)
-		} else {
-			updateQuery += ", description = NULL"
+		fmt.Printf("? Fetching categories with query: %s\n", catQuery)
+		catResult, err := database.DB.Query(catQuery, nil)
+		if err != nil {
+			fmt.Printf("? Failed to fetch categories: %v\n", err)
+			return nil, fmt.Errorf("failed to fetch categories: %v", err)
 		}
-	}
-	
-	if input.CategoryID != nil {
-		if *input.CategoryID != "" {
-			updateQuery += fmt.Sprintf(", categoryId = %s", *input.CategoryID)
-		} else {
-			updateQuery += ", categoryId = NULL"
+
+		categories, err := surrealdb.SmartUnmarshal[[]*model.Category](catResult, nil)
+		if err != nil {
+			fmt.Printf("? Failed to unmarshal categories: %v\n", err)
+			return nil, fmt.Errorf("failed to unmarshal categories: %v", err)
 		}
-	}
-	
-	updateQuery += fmt.Sprintf(", dueDate = <datetime>'%s'", input.DueDate.Format(time.RFC3339))
-	
-	if input.Location != nil {
-		if *input.Location != "" {
-			updateQuery += fmt.Sprintf(", location = '%s'", *input.Location)
-		} else {
-			updateQuery += ", location = NULL"
-		}
-	}
-	
-	if input.Priority != nil {
-		updateQuery += fmt.Sprintf(", priority = %d", *input.Priority)
-	}
-	
-	if input.Tags != nil {
-		if len(input.Tags) > 0 {
-			tagsStr := "["
-			for i, tag := range input.Tags {
-				if i > 0 {
-					tagsStr += ", "
-				}
-				tagsStr += fmt.Sprintf("'%s'", tag)
+
+		if len(categories) > 0 {
+			todoOutput.Categories = categories
+
+			// Set the primary category (first one) for backward compatibility
+			if len(categories) > 0 {
+				todoOutput.Category = categories[0]
 			}
-			tagsStr += "]"
-			updateQuery += fmt.Sprintf(", tags = %s", tagsStr)
-		} else {
-			updateQuery += ", tags = []"
+
+			fmt.Printf("? Found %d categories for todo\n", len(categories))
 		}
-	}
-	
-	// Debug info before executing query
-	fmt.Printf("? Executing update query: %s\n", updateQuery)
-	
-	result, err := database.DB.Query(updateQuery, nil)
-	if err != nil {
-		fmt.Printf("? Failed to update todo: %v\n", err)
-		return nil, fmt.Errorf("failed to update todo: %v", err)
-	}
-	
-	updatedTodos, err := surrealdb.SmartUnmarshal[[]*model.Todo](result, nil)
-	if err != nil {
-		fmt.Printf("? Failed to unmarshal updated todo: %v\n", err)
-		return nil, fmt.Errorf("failed to unmarshal updated todo: %v", err)
-	}
-	
-	if len(updatedTodos) == 0 {
-		fmt.Printf("? No todo returned from update query\n")
-		return nil, fmt.Errorf("no todo returned from update query")
-	}
-	
-	todo := updatedTodos[0]
-	fmt.Printf("? Todo updated successfully: %+v\n", todo)
-	
-	// If there's a category, fetch it
-	var category *model.Category
-	if todo.CategoryID != nil && *todo.CategoryID != "" {
+	} else if todo.CategoryID != nil && *todo.CategoryID != "" {
+		// Legacy support: fetch single category
 		fmt.Printf("? Fetching category with ID: %s\n", *todo.CategoryID)
 		catResult, err := database.DB.Query("SELECT * FROM category WHERE id = $id", map[string]interface{}{
 			"id": *todo.CategoryID,
@@ -227,44 +162,194 @@ func (r *mutationResolver) UpdateTodo(ctx context.Context, id string, input mode
 			fmt.Printf("? Failed to fetch category: %v\n", err)
 			return nil, fmt.Errorf("failed to fetch category: %v", err)
 		}
-	
+
 		categories, err := surrealdb.SmartUnmarshal[[]*model.Category](catResult, nil)
 		if err != nil {
 			fmt.Printf("? Failed to unmarshal category: %v\n", err)
 			return nil, fmt.Errorf("failed to unmarshal category: %v", err)
 		}
+
 		if len(categories) > 0 {
-			category = categories[0]
-			fmt.Printf("? Found category: %s\n", category.Name)
+			todoOutput.Category = categories[0]
+			todoOutput.Categories = categories
+			fmt.Printf("? Found category: %s\n", categories[0].Name)
 		} else {
 			fmt.Printf("?? No category found with ID: %s\n", *todo.CategoryID)
 		}
 	} else {
 		fmt.Printf("?? No category ID provided for this todo\n")
 	}
-	
+
+	return todoOutput, nil
+}
+
+// UpdateTodo is the resolver for the updateTodo field.
+func (r *mutationResolver) UpdateTodo(ctx context.Context, id string, input model.TodoInput) (*model.TodoOutput, error) {
+	now := time.Now()
+
+	fmt.Printf("? UPDATE todo with id: %s\n", id)
+
+	// Update query for the todo
+	updateQuery := fmt.Sprintf("UPDATE %s SET title = '%s', updatedAt = <datetime>'%s'",
+		id, helpers.EscapeString(input.Title), now.Format(time.RFC3339))
+
+	// Add optional fields for update
+	if input.Description != nil {
+		updateQuery += fmt.Sprintf(", description = '%s'", helpers.EscapeString(*input.Description))
+	}
+
+	// Handle the completed field
+	if input.Completed != nil {
+		updateQuery += fmt.Sprintf(", completed = %v", *input.Completed)
+	}
+
+	// Handle both categoryId and categoryIds for backward compatibility
+	if input.CategoryIds != nil && len(input.CategoryIds) > 0 {
+		// Use the first category as the primary categoryId for backward compatibility
+		categoryID := input.CategoryIds[0]
+		updateQuery += fmt.Sprintf(", categoryId = '%s'", helpers.EscapeString(categoryID))
+
+		// Store the full list of category IDs
+		updateQuery += fmt.Sprintf(", categoryIds = %s", helpers.FormatCategoryIdsArray(input.CategoryIds))
+	} else if input.CategoryID != nil {
+		// Legacy support for single categoryId
+		if *input.CategoryID == "" {
+			// Empty string means remove category
+			updateQuery += ", categoryId = NULL, categoryIds = []"
+		} else {
+			updateQuery += fmt.Sprintf(", categoryId = '%s'", helpers.EscapeString(*input.CategoryID))
+			updateQuery += fmt.Sprintf(", categoryIds = ['%s']", helpers.EscapeString(*input.CategoryID))
+		}
+	}
+
+	if input.DueDate != (time.Time{}) {
+		updateQuery += fmt.Sprintf(", dueDate = <datetime>'%s'", input.DueDate.Format(time.RFC3339))
+	}
+
+	if input.Location != nil {
+		updateQuery += fmt.Sprintf(", location = '%s'", helpers.EscapeString(*input.Location))
+	}
+
+	if input.Priority != nil {
+		updateQuery += fmt.Sprintf(", priority = %d", *input.Priority)
+	}
+
+	if input.Tags != nil {
+		if len(input.Tags) > 0 {
+			tagsStr := "["
+			for i, tag := range input.Tags {
+				if i > 0 {
+					tagsStr += ", "
+				}
+				tagsStr += fmt.Sprintf("'%s'", helpers.EscapeString(tag))
+			}
+			tagsStr += "]"
+			updateQuery += fmt.Sprintf(", tags = %s", tagsStr)
+		} else {
+			updateQuery += ", tags = []"
+		}
+	}
+
+	fmt.Printf("? Executing query: %s\n", updateQuery)
+	result, err := database.DB.Query(updateQuery, nil)
+	if err != nil {
+		fmt.Printf("? Failed to update todo: %v\n", err)
+		return nil, fmt.Errorf("failed to update todo: %v", err)
+	}
+
+	updatedTodos, err := surrealdb.SmartUnmarshal[[]*model.Todo](result, nil)
+	if err != nil {
+		fmt.Printf("? Failed to unmarshal updated todo: %v\n", err)
+		return nil, fmt.Errorf("failed to unmarshal updated todo: %v", err)
+	}
+
+	if len(updatedTodos) == 0 {
+		fmt.Printf("? No todo returned from update query\n")
+		return nil, fmt.Errorf("no todo returned from update query")
+	}
+
+	todo := updatedTodos[0]
+	fmt.Printf("? Todo updated successfully: %+v\n", todo)
+
+	// Build output with categories
 	todoOutput := &model.TodoOutput{
 		ID:          todo.ID,
 		Title:       todo.Title,
 		Description: todo.Description,
 		Completed:   todo.Completed,
-		Category:    category,
 		DueDate:     todo.DueDate,
 		Location:    todo.Location,
 		Priority:    todo.Priority,
 		Tags:        todo.Tags,
 		UpdatedAt:   todo.UpdatedAt,
+		Categories:  []*model.Category{},
 	}
-	
-	// Final check of constructed output
-	fmt.Printf("? Updated todo output: %+v\n", todoOutput)
+
+	// Fetch categories based on categoryIds first
+	categoryIds := helpers.SafeCategoryIds(todo.CategoryIds)
+	if len(categoryIds) > 0 {
+		// Fetch all categories in one query for better performance
+		formattedCategoryIdsArray := helpers.FormatCategoryIdsArray(categoryIds)
+		catQuery := fmt.Sprintf("SELECT * FROM category WHERE id IN %s", formattedCategoryIdsArray)
+
+		fmt.Printf("? Fetching categories with query: %s\n", catQuery)
+		catResult, err := database.DB.Query(catQuery, nil)
+		if err != nil {
+			fmt.Printf("? Failed to fetch categories: %v\n", err)
+			return nil, fmt.Errorf("failed to fetch categories: %v", err)
+		}
+
+		categories, err := surrealdb.SmartUnmarshal[[]*model.Category](catResult, nil)
+		if err != nil {
+			fmt.Printf("? Failed to unmarshal categories: %v\n", err)
+			return nil, fmt.Errorf("failed to unmarshal categories: %v", err)
+		}
+
+		if len(categories) > 0 {
+			todoOutput.Categories = categories
+
+			// Set the primary category (first one) for backward compatibility
+			if len(categories) > 0 {
+				todoOutput.Category = categories[0]
+			}
+
+			fmt.Printf("? Found %d categories for todo\n", len(categories))
+		}
+	} else if todo.CategoryID != nil && *todo.CategoryID != "" {
+		// Legacy support: fetch single category
+		fmt.Printf("? Fetching category for todo: %s\n", todo.ID)
+		catResult, err := database.DB.Query("SELECT * FROM category WHERE id = $id", map[string]interface{}{
+			"id": *todo.CategoryID,
+		})
+		if err != nil {
+			fmt.Printf("? Failed to fetch category: %v\n", err)
+			return nil, fmt.Errorf("failed to fetch category: %v", err)
+		}
+
+		categories, err := surrealdb.SmartUnmarshal[[]*model.Category](catResult, nil)
+		if err != nil {
+			fmt.Printf("? Failed to unmarshal category: %v\n", err)
+			return nil, fmt.Errorf("failed to unmarshal category: %v", err)
+		}
+
+		if len(categories) > 0 {
+			todoOutput.Category = categories[0]
+			todoOutput.Categories = []*model.Category{categories[0]}
+			fmt.Printf("? Found category: %s\n", categories[0].Name)
+		} else {
+			fmt.Printf("?? No category found with ID: %s\n", *todo.CategoryID)
+		}
+	} else {
+		fmt.Printf("?? No categories for this todo\n")
+	}
+
 	return todoOutput, nil
 }
 
 // ToggleTodo is the resolver for the toggleTodo field.
 func (r *mutationResolver) ToggleTodo(ctx context.Context, id string) (*model.TodoOutput, error) {
 	fmt.Printf("? ToggleTodo called for id: %s\n", id)
-	
+
 	// First, get the current todo to check its completed status
 	result, err := database.DB.Query(
 		`SELECT * FROM $todo_id;`,
@@ -276,7 +361,7 @@ func (r *mutationResolver) ToggleTodo(ctx context.Context, id string) (*model.To
 		fmt.Printf("? Error fetching todo: %v\n", err)
 		return nil, err
 	}
-	
+
 	todos, err := surrealdb.SmartUnmarshal[[]model.Todo](result, nil)
 	if err != nil {
 		fmt.Printf("? Error unmarshalling todo: %v\n", err)
@@ -292,39 +377,82 @@ func (r *mutationResolver) ToggleTodo(ctx context.Context, id string) (*model.To
 	currentCompleted := todos[0].Completed
 	newCompleted := !currentCompleted
 	now := time.Now().Format(time.RFC3339)
-	
+
 	// Build the UPDATE query
-	updateQuery := fmt.Sprintf("UPDATE %s SET completed = %v, updatedAt = <datetime>'%s'", 
-		id, 
+	updateQuery := fmt.Sprintf("UPDATE %s SET completed = %v, updatedAt = <datetime>'%s'",
+		id,
 		newCompleted,
 		now)
-	
+
 	fmt.Printf("? Executing update query: %s\n", updateQuery)
-	
+
 	// Execute the UPDATE query
 	updateResult, err := database.DB.Query(updateQuery, nil)
 	if err != nil {
 		fmt.Printf("? Failed to toggle todo: %v\n", err)
 		return nil, fmt.Errorf("failed to toggle todo: %v", err)
 	}
-	
+
 	updatedTodos, err := surrealdb.SmartUnmarshal[[]*model.Todo](updateResult, nil)
 	if err != nil {
 		fmt.Printf("? Failed to unmarshal updated todo: %v\n", err)
 		return nil, fmt.Errorf("failed to unmarshal updated todo: %v", err)
 	}
-	
+
 	if len(updatedTodos) == 0 {
 		fmt.Printf("? No todo returned from update query\n")
 		return nil, fmt.Errorf("no todo returned from update query")
 	}
-	
+
 	todo := updatedTodos[0]
 	fmt.Printf("? Todo toggled successfully, completed: %v\n", todo.Completed)
 
-	// If there's a category, fetch it
-	var category *model.Category
-	if todo.CategoryID != nil && *todo.CategoryID != "" {
+	// Build output with categories
+	todoOutput := &model.TodoOutput{
+		ID:          todo.ID,
+		Title:       todo.Title,
+		Description: todo.Description,
+		Completed:   todo.Completed,
+		DueDate:     todo.DueDate,
+		Location:    todo.Location,
+		Priority:    todo.Priority,
+		Tags:        todo.Tags,
+		UpdatedAt:   todo.UpdatedAt,
+		Categories:  []*model.Category{},
+	}
+
+	// Fetch categories based on categoryIds first
+	categoryIds := helpers.SafeCategoryIds(todo.CategoryIds)
+	if len(categoryIds) > 0 {
+		// Fetch all categories in one query for better performance
+		formattedCategoryIdsArray := helpers.FormatCategoryIdsArray(categoryIds)
+		catQuery := fmt.Sprintf("SELECT * FROM category WHERE id IN %s", formattedCategoryIdsArray)
+
+		fmt.Printf("? Fetching categories with query: %s\n", catQuery)
+		catResult, err := database.DB.Query(catQuery, nil)
+		if err != nil {
+			fmt.Printf("? Failed to fetch categories: %v\n", err)
+			return nil, fmt.Errorf("failed to fetch categories: %v", err)
+		}
+
+		categories, err := surrealdb.SmartUnmarshal[[]*model.Category](catResult, nil)
+		if err != nil {
+			fmt.Printf("? Failed to unmarshal categories: %v\n", err)
+			return nil, fmt.Errorf("failed to unmarshal categories: %v", err)
+		}
+
+		if len(categories) > 0 {
+			todoOutput.Categories = categories
+
+			// Set the primary category (first one) for backward compatibility
+			if len(categories) > 0 {
+				todoOutput.Category = categories[0]
+			}
+
+			fmt.Printf("? Found %d categories for todo\n", len(categories))
+		}
+	} else if todo.CategoryID != nil && *todo.CategoryID != "" {
+		// Legacy support: fetch single category
 		fmt.Printf("? Fetching category for todo: %s\n", todo.ID)
 		catResult, err := database.DB.Query("SELECT * FROM category WHERE id = $id", map[string]interface{}{
 			"id": *todo.CategoryID,
@@ -333,33 +461,22 @@ func (r *mutationResolver) ToggleTodo(ctx context.Context, id string) (*model.To
 			fmt.Printf("? Failed to fetch category: %v\n", err)
 			return nil, fmt.Errorf("failed to fetch category: %v", err)
 		}
-		
+
 		categories, err := surrealdb.SmartUnmarshal[[]*model.Category](catResult, nil)
 		if err != nil {
 			fmt.Printf("? Failed to unmarshal category: %v\n", err)
 			return nil, fmt.Errorf("failed to unmarshal category: %v", err)
 		}
-		
+
 		if len(categories) > 0 {
-			category = categories[0]
-			fmt.Printf("? Found category: %s\n", category.Name)
+			todoOutput.Category = categories[0]
+			todoOutput.Categories = []*model.Category{categories[0]}
+			fmt.Printf("? Found category: %s\n", categories[0].Name)
 		}
+	} else {
+		fmt.Printf("?? No categories for this todo\n")
 	}
 
-	todoOutput := &model.TodoOutput{
-		ID:          todo.ID,
-		Title:       todo.Title,
-		Description: todo.Description,
-		Completed:   todo.Completed,
-		Category:    category,
-		DueDate:     todo.DueDate,
-		Location:    todo.Location,
-		Priority:    todo.Priority,
-		Tags:        todo.Tags,
-		UpdatedAt:   todo.UpdatedAt,
-	}
-	
-	fmt.Printf("? Returning todo output\n")
 	return todoOutput, nil
 }
 
@@ -396,37 +513,37 @@ func (r *mutationResolver) CreateCategory(ctx context.Context, input model.Categ
 // UpdateCategory is the resolver for the updateCategory field.
 func (r *mutationResolver) UpdateCategory(ctx context.Context, id string, input model.CategoryInput) (*model.Category, error) {
 	fmt.Printf("? Updating category with ID: %s\n", id)
-	
+
 	// Build the update query
-	updateQuery := fmt.Sprintf("UPDATE %s SET name = '%s', color = '%s', updatedAt = <datetime>'%s'", 
-		id, 
+	updateQuery := fmt.Sprintf("UPDATE %s SET name = '%s', color = '%s', updatedAt = <datetime>'%s'",
+		id,
 		input.Name,
 		input.Color,
 		time.Now().Format(time.RFC3339))
-	
+
 	// Debug info before executing query
 	fmt.Printf("? Executing update query: %s\n", updateQuery)
-	
+
 	result, err := database.DB.Query(updateQuery, nil)
 	if err != nil {
 		fmt.Printf("? Failed to update category: %v\n", err)
 		return nil, fmt.Errorf("failed to update category: %v", err)
 	}
-	
+
 	updatedCategories, err := surrealdb.SmartUnmarshal[[]*model.Category](result, nil)
 	if err != nil {
 		fmt.Printf("? Failed to unmarshal updated category: %v\n", err)
 		return nil, fmt.Errorf("failed to unmarshal updated category: %v", err)
 	}
-	
+
 	if len(updatedCategories) == 0 {
 		fmt.Printf("? No category returned from update query\n")
 		return nil, fmt.Errorf("no category returned from update query")
 	}
-	
+
 	category := updatedCategories[0]
 	fmt.Printf("? Category updated successfully: %+v\n", category)
-	
+
 	return category, nil
 }
 
@@ -453,8 +570,8 @@ func (r *mutationResolver) DeleteCategory(ctx context.Context, id string) (bool,
 	categoryName := categories[0].Name
 	fmt.Printf("? Deleting category: %s (ID: %s)\n", categoryName, id)
 
-	// Find all todos that reference this category
-	todosQuery := fmt.Sprintf("SELECT * FROM todo WHERE categoryId = %s", id)
+	// Find all todos that reference this category (either in categoryId or categoryIds)
+	todosQuery := fmt.Sprintf("SELECT * FROM todo WHERE categoryId = '%s' OR '%s' IN categoryIds", id, id)
 	todosResult, err := database.DB.Query(todosQuery, nil)
 	if err != nil {
 		return false, fmt.Errorf("failed to fetch todos for category: %v", err)
@@ -469,16 +586,83 @@ func (r *mutationResolver) DeleteCategory(ctx context.Context, id string) (bool,
 
 	// Update all todos to remove the category reference
 	if len(todos) > 0 {
-		updateQuery := fmt.Sprintf("UPDATE todo SET categoryId = NULL, updatedAt = <datetime>'%s' WHERE categoryId = %s", 
-			time.Now().Format(time.RFC3339), id)
-		
-		fmt.Printf("? Executing update query: %s\n", updateQuery)
-		_, err := database.DB.Query(updateQuery, nil)
-		if err != nil {
-			return false, fmt.Errorf("failed to update todos: %v", err)
+		// For each todo, we need to update it individually to handle both single and multiple categories
+		for _, todo := range todos {
+			todoId := todo.ID
+
+			if todo.CategoryID != nil && *todo.CategoryID == id {
+				// This todo has the deleted category as its primary category
+
+				if len(todo.CategoryIds) > 1 {
+					// It has other categories too, use the next one as primary
+					newCategoryIds := []string{}
+					newPrimaryId := ""
+
+					for _, catId := range todo.CategoryIds {
+						if catId != id {
+							newCategoryIds = append(newCategoryIds, catId)
+							if newPrimaryId == "" {
+								newPrimaryId = catId
+							}
+						}
+					}
+
+					// Update with new primary and categoryIds
+					categoryIdsStr := fmt.Sprintf("['%s']", strings.Join(newCategoryIds, "','"))
+					updateQuery := fmt.Sprintf("UPDATE %s SET categoryId = '%s', categoryIds = %s, updatedAt = <datetime>'%s'",
+						todoId,
+						newPrimaryId,
+						categoryIdsStr,
+						time.Now().Format(time.RFC3339))
+
+					fmt.Printf("? Updating todo %s to use new primary category: %s\n", todoId, newPrimaryId)
+					_, err := database.DB.Query(updateQuery, nil)
+					if err != nil {
+						return false, fmt.Errorf("failed to update todo %s: %v", todoId, err)
+					}
+				} else {
+					// It only had this category, remove the category completely
+					updateQuery := fmt.Sprintf("UPDATE %s SET categoryId = NULL, categoryIds = [], updatedAt = <datetime>'%s'",
+						todoId,
+						time.Now().Format(time.RFC3339))
+
+					fmt.Printf("? Removing all categories from todo %s\n", todoId)
+					_, err := database.DB.Query(updateQuery, nil)
+					if err != nil {
+						return false, fmt.Errorf("failed to update todo %s: %v", todoId, err)
+					}
+				}
+			} else if len(todo.CategoryIds) > 0 {
+				// This todo has the category in its categoryIds but not as primary
+				// Just update the categoryIds array
+				newCategoryIds := []string{}
+
+				for _, catId := range todo.CategoryIds {
+					if catId != id {
+						newCategoryIds = append(newCategoryIds, catId)
+					}
+				}
+
+				// Use an empty array if no categories left
+				categoryIdsStr := "[]"
+				if len(newCategoryIds) > 0 {
+					categoryIdsStr = fmt.Sprintf("['%s']", strings.Join(newCategoryIds, "','"))
+				}
+
+				updateQuery := fmt.Sprintf("UPDATE %s SET categoryIds = %s, updatedAt = <datetime>'%s'",
+					todoId,
+					categoryIdsStr,
+					time.Now().Format(time.RFC3339))
+
+				fmt.Printf("? Removing category %s from categoryIds for todo %s\n", id, todoId)
+				_, err := database.DB.Query(updateQuery, nil)
+				if err != nil {
+					return false, fmt.Errorf("failed to update todo %s: %v", todoId, err)
+				}
+			}
 		}
-		
-		fmt.Printf("? Successfully removed category reference from %d todos\n", len(todos))
+
+		fmt.Printf("? Successfully updated %d todos to remove category references\n", len(todos))
 	}
 
 	// Now delete the category
@@ -486,63 +670,93 @@ func (r *mutationResolver) DeleteCategory(ctx context.Context, id string) (bool,
 	if err != nil {
 		return false, fmt.Errorf("failed to delete category: %v", err)
 	}
-	
+
 	fmt.Printf("? Successfully deleted category: %s\n", categoryName)
 	return true, nil
 }
 
 // Todos is the resolver for the todos field.
 func (r *queryResolver) Todos(ctx context.Context, filter *model.TodoFilter) ([]*model.TodoOutput, error) {
+	fmt.Printf("? Querying todos with filter: %+v\n", filter)
+
+	// Start building the query
 	query := "SELECT * FROM todo"
 
-	// Build filter conditions
-	conditions := []string{}
-	noCategoryFilter := false
-	
-	fmt.Printf("\n? Todos resolver called with filter: %+v\n", filter)
-	
+	// Track if we're using the noCategoryOnly filter
+	var noCategoryFilter bool
+
+	// Build conditions based on filter
+	var conditions []string
 	if filter != nil {
 		if filter.Completed != nil {
-			conditions = append(conditions, fmt.Sprintf("completed = %v", *filter.Completed))
+			completedStr := "false"
+			if *filter.Completed {
+				completedStr = "true"
+			}
+			conditions = append(conditions, fmt.Sprintf("completed = %s", completedStr))
 			fmt.Printf("? Adding completed filter: %v\n", *filter.Completed)
 		}
-		
-		// Handle category filtering
+
+		// Handle categoryIds filter (multiple categories)
+		if filter.CategoryIds != nil && len(filter.CategoryIds) > 0 {
+			categoryQueryConditions := []string{}
+			for _, catID := range filter.CategoryIds {
+				escapedCatID := helpers.EscapeString(catID)
+				// Match if the category is the primary categoryId OR is in the categoryIds array
+				categoryQueryConditions = append(categoryQueryConditions, 
+					fmt.Sprintf("(categoryId = '%s' OR '%s' IN categoryIds)", escapedCatID, escapedCatID))
+			}
+			// A todo matches if ANY of the filter category conditions are met
+			if len(categoryQueryConditions) > 0 {
+				conditions = append(conditions, fmt.Sprintf("(%s)", strings.Join(categoryQueryConditions, " OR ")))
+				fmt.Printf("? Adding categoryIds filter for %d categories\n", len(filter.CategoryIds))
+			}
+		} else if filter.CategoryID != nil && *filter.CategoryID != "" { // Handle single categoryId filter (legacy)
+			if strings.ToLower(*filter.CategoryID) == "none" {
+				noCategoryFilter = true
+				fmt.Printf("? Using special 'none' category filter\n")
+			} else {
+				escapedCatID := helpers.EscapeString(*filter.CategoryID)
+				// CORRECTED: Was categoryIds[WHERE $this = '%s'] in user's version
+				conditions = append(conditions, fmt.Sprintf("(categoryId = '%s' OR '%s' IN categoryIds)",
+					escapedCatID, escapedCatID))
+				fmt.Printf("? Adding categoryId filter: %s\n", *filter.CategoryID)
+			}
+		}
+
+		// Handle explicit noCategoryOnly filter
 		if filter.NoCategoryOnly != nil && *filter.NoCategoryOnly {
 			noCategoryFilter = true
-			conditions = append(conditions, "(categoryId = NULL)")
-			fmt.Printf("? Adding noCategoryOnly filter\n")
-		} else if filter.CategoryID != nil && *filter.CategoryID != "" {
-			conditions = append(conditions, fmt.Sprintf("categoryId = %s", *filter.CategoryID))
-			fmt.Printf("? Adding categoryId filter: %s\n", *filter.CategoryID)
+			// CORRECTED: Removed extra backslash from \'\' to \' 
+			conditions = append(conditions, "((categoryId IS NULL OR categoryId = '') AND (categoryIds IS NULL OR array::len(categoryIds) = 0))")
+			fmt.Printf("? Using noCategoryOnly filter\n")
 		}
-		
+
 		if filter.StartDate != nil {
 			conditions = append(conditions, fmt.Sprintf("dueDate >= <datetime>'%s'", filter.StartDate.Format(time.RFC3339)))
 			fmt.Printf("? Adding startDate filter: %s\n", filter.StartDate.Format(time.RFC3339))
 		}
-		
+
 		if filter.EndDate != nil {
 			conditions = append(conditions, fmt.Sprintf("dueDate <= <datetime>'%s'", filter.EndDate.Format(time.RFC3339)))
 			fmt.Printf("? Adding endDate filter: %s\n", filter.EndDate.Format(time.RFC3339))
 		}
-		
-		// Add new filters for updateBefore and updateAfter
+
 		if filter.UpdatedBefore != nil {
 			conditions = append(conditions, fmt.Sprintf("updatedAt <= <datetime>'%s'", filter.UpdatedBefore.Format(time.RFC3339)))
 			fmt.Printf("? Adding updatedBefore filter: %s\n", filter.UpdatedBefore.Format(time.RFC3339))
 		}
-		
+
 		if filter.UpdatedAfter != nil {
 			conditions = append(conditions, fmt.Sprintf("updatedAt >= <datetime>'%s'", filter.UpdatedAfter.Format(time.RFC3339)))
 			fmt.Printf("? Adding updatedAfter filter: %s\n", filter.UpdatedAfter.Format(time.RFC3339))
 		}
-		
+
 		if filter.Priority != nil {
 			conditions = append(conditions, fmt.Sprintf("priority = %d", *filter.Priority))
 			fmt.Printf("? Adding priority filter: %d\n", *filter.Priority)
 		}
-		
+
 		if filter.Tags != nil && len(filter.Tags) > 0 {
 			tagConditions := []string{}
 			for _, tag := range filter.Tags {
@@ -556,9 +770,9 @@ func (r *queryResolver) Todos(ctx context.Context, filter *model.TodoFilter) ([]
 	if len(conditions) > 0 {
 		query += " WHERE " + strings.Join(conditions, " AND ")
 	}
-	
+
 	fmt.Printf("? Executing SurrealDB query: %s\n", query)
-	
+
 	result, err := database.DB.Query(query, map[string]interface{}{})
 	if err != nil {
 		fmt.Printf("? Error fetching todos: %v\n", err)
@@ -570,12 +784,13 @@ func (r *queryResolver) Todos(ctx context.Context, filter *model.TodoFilter) ([]
 		fmt.Printf("? Error unmarshalling todos: %v\n", err)
 		return nil, fmt.Errorf("failed to unmarshal todos: %v", err)
 	}
-	
+
 	fmt.Printf("? Found %d todos\n", len(todos))
-	
+
 	// Log todos for debugging
 	for _, todo := range todos {
-		fmt.Printf("? Todo: ID=%s, Title=%s, CategoryID=%v\n", todo.ID, todo.Title, todo.CategoryID)
+		fmt.Printf("? Todo: ID=%s, Title=%s, CategoryID=%v, CategoryIds=%v\n",
+			todo.ID, todo.Title, todo.CategoryID, todo.CategoryIds)
 	}
 
 	// Convert todos to todo outputs and fetch categories
@@ -583,12 +798,12 @@ func (r *queryResolver) Todos(ctx context.Context, filter *model.TodoFilter) ([]
 	for _, todo := range todos {
 		// Special handling for noCategoryOnly filter
 		if noCategoryFilter {
-			// Skip if it has a valid category ID
-			if todo.CategoryID != nil && *todo.CategoryID != "" {
+			// Skip if it has a valid category ID or categoryIds
+			if (todo.CategoryID != nil && *todo.CategoryID != "") || len(todo.CategoryIds) > 0 {
 				continue
 			}
 		}
-		
+
 		output := &model.TodoOutput{
 			ID:          todo.ID,
 			Title:       todo.Title,
@@ -599,10 +814,39 @@ func (r *queryResolver) Todos(ctx context.Context, filter *model.TodoFilter) ([]
 			Priority:    todo.Priority,
 			Tags:        todo.Tags,
 			UpdatedAt:   todo.UpdatedAt,
+			Categories:  []*model.Category{},
 		}
 
-		if todo.CategoryID != nil && *todo.CategoryID != "" {
-			// Fetch the category
+		// First try to fetch categories using categoryIds
+		if len(todo.CategoryIds) > 0 {
+			// Fetch all categories in one query for better performance
+			formattedCategoryIdsArray := helpers.FormatCategoryIdsArray(todo.CategoryIds)
+			catQuery := fmt.Sprintf("SELECT * FROM category WHERE id IN %s", formattedCategoryIdsArray)
+
+			fmt.Printf("? Fetching categories with query: %s\n", catQuery)
+			catResult, err := database.DB.Query(catQuery, nil)
+			if err != nil {
+				fmt.Printf("? Error fetching categories: %v\n", err)
+				return nil, fmt.Errorf("failed to fetch categories: %v", err)
+			}
+
+			categories, err := surrealdb.SmartUnmarshal[[]*model.Category](catResult, nil)
+			if err != nil {
+				fmt.Printf("? Error unmarshalling categories: %v\n", err)
+				return nil, fmt.Errorf("failed to unmarshal categories: %v", err)
+			}
+
+			if len(categories) > 0 {
+				output.Categories = categories
+
+				// Set the primary category (first one) for backward compatibility
+				if len(categories) > 0 {
+					output.Category = categories[0]
+				}
+				fmt.Printf("? Found %d categories for todo %s\n", len(categories), todo.ID)
+			}
+		} else if todo.CategoryID != nil && *todo.CategoryID != "" {
+			// Legacy support: fetch single category
 			fmt.Printf("? Fetching category for todo %s with categoryId %s\n", todo.ID, *todo.CategoryID)
 			catResult, err := database.DB.Query("SELECT * FROM category WHERE id = $id", map[string]interface{}{
 				"id": *todo.CategoryID,
@@ -620,6 +864,7 @@ func (r *queryResolver) Todos(ctx context.Context, filter *model.TodoFilter) ([]
 
 			if len(categories) > 0 {
 				output.Category = categories[0]
+				output.Categories = []*model.Category{categories[0]}
 				fmt.Printf("? Found category for todo %s: %s\n", todo.ID, categories[0].Name)
 			} else {
 				fmt.Printf("?? No category found for todo %s with categoryId %s\n", todo.ID, *todo.CategoryID)
@@ -630,7 +875,7 @@ func (r *queryResolver) Todos(ctx context.Context, filter *model.TodoFilter) ([]
 
 		outputs = append(outputs, output)
 	}
-	
+
 	fmt.Printf("? Returning %d todo outputs\n", len(outputs))
 	return outputs, nil
 }
@@ -664,9 +909,38 @@ func (r *queryResolver) Todo(ctx context.Context, id string) (*model.TodoOutput,
 		Priority:    todo.Priority,
 		Tags:        todo.Tags,
 		UpdatedAt:   todo.UpdatedAt,
+		Categories:  []*model.Category{},
 	}
 
-	if todo.CategoryID != nil && *todo.CategoryID != "" {
+	// Fetch categories based on categoryIds first
+	categoryIds := helpers.SafeCategoryIds(todo.CategoryIds)
+	if len(categoryIds) > 0 {
+		// Fetch all categories in one query for better performance
+		formattedCategoryIdsArray := helpers.FormatCategoryIdsArray(categoryIds)
+		catQuery := fmt.Sprintf("SELECT * FROM category WHERE id IN %s", formattedCategoryIdsArray)
+
+		fmt.Printf("? Fetching categories with query: %s\n", catQuery)
+		catResult, err := database.DB.Query(catQuery, nil)
+		if err != nil {
+			fmt.Printf("? Failed to fetch categories: %v\n", err)
+			return nil, fmt.Errorf("failed to fetch categories: %v", err)
+		}
+
+		categories, err := surrealdb.SmartUnmarshal[[]*model.Category](catResult, nil)
+		if err != nil {
+			fmt.Printf("? Failed to unmarshal categories: %v\n", err)
+			return nil, fmt.Errorf("failed to unmarshal categories: %v", err)
+		}
+
+		if len(categories) > 0 {
+			output.Categories = categories
+
+			// Set the primary category (first one) for backward compatibility
+			output.Category = categories[0]
+			fmt.Printf("? Found %d categories for todo\n", len(categories))
+		}
+	} else if todo.CategoryID != nil && *todo.CategoryID != "" {
+		// Legacy support: fetch single category
 		catResult, err := database.DB.Query("SELECT * FROM category WHERE id = $id", map[string]interface{}{
 			"id": *todo.CategoryID,
 		})
@@ -681,6 +955,7 @@ func (r *queryResolver) Todo(ctx context.Context, id string) (*model.TodoOutput,
 
 		if len(categories) > 0 {
 			output.Category = categories[0]
+			output.Categories = []*model.Category{categories[0]}
 		}
 	}
 

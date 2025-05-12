@@ -1,11 +1,13 @@
 import 'category.dart';
+import '../utils/encoding_helper.dart';
 
 class Todo {
   final String id;
   final String title;
   final String? description;
   final bool completed;
-  final Category? category;
+  final Category? category; // Keep for backward compatibility
+  final List<Category>? categories; // New field for multiple categories
   final DateTime? dueDate;
   final String? location;
   final int? priority;
@@ -23,6 +25,7 @@ class Todo {
     this.description,
     required this.completed,
     this.category,
+    this.categories,
     this.dueDate,
     this.location,
     this.priority,
@@ -54,15 +57,32 @@ class Todo {
       }
     }
 
+    // Handle single category (for backward compatibility)
+    Category? singleCategory;
+    if (json['category'] != null) {
+      singleCategory = Category.fromJson(json['category'] as Map<String, dynamic>);
+    }
+    
+    // Handle multiple categories
+    List<Category>? multipleCategories;
+    if (json['categories'] != null && json['categories'] is List) {
+      multipleCategories = (json['categories'] as List)
+          .map((item) => Category.fromJson(item as Map<String, dynamic>))
+          .toList();
+    }
+
     // Handle potentially missing or null fields
     return Todo(
       id: json['id'] as String,
-      title: json['title'] as String,
-      description: json['description'] as String?,
+      title: EncodingHelper.ensureUtf8(json['title'] as String),
+      description: json['description'] != null ? 
+        EncodingHelper.ensureUtf8(json['description'] as String) : null,
       completed: json['completed'] as bool? ?? false,
-      category: json['category'] != null ? Category.fromJson(json['category'] as Map<String, dynamic>) : null,
+      category: singleCategory,
+      categories: multipleCategories,
       dueDate: json['dueDate'] != null ? parseDueDate(json['dueDate'] as String) : null,
-      location: json['location'] as String?,
+      location: json['location'] != null ? 
+        EncodingHelper.ensureUtf8(json['location'] as String) : null,
       priority: json['priority'] as int?,
       tags: tags,
       updatedAt: json['updatedAt'] != null ? DateTime.parse(json['updatedAt'] as String).toLocal() : DateTime.now(),
@@ -77,6 +97,7 @@ class Todo {
       'description': description,
       'completed': completed,
       'category': category?.toJson(),
+      'categories': categories?.map((c) => c.toJson()).toList(),
       'dueDate': dueDate?.toIso8601String(),
       'location': location,
       'priority': priority,
@@ -92,6 +113,7 @@ class Todo {
     String? description,
     bool? completed,
     Category? category,
+    List<Category>? categories,
     DateTime? dueDate,
     String? location,
     int? priority,
@@ -105,6 +127,7 @@ class Todo {
       description: description ?? this.description,
       completed: completed ?? this.completed,
       category: category ?? this.category,
+      categories: categories ?? this.categories,
       dueDate: dueDate ?? this.dueDate,
       location: location ?? this.location,
       priority: priority ?? this.priority,
@@ -112,5 +135,21 @@ class Todo {
       updatedAt: updatedAt ?? this.updatedAt,
       createdAt: createdAt ?? this.createdAt,
     );
+  }
+  
+  // Helper method to get all categories (from both category and categories fields)
+  // Since the server only supports 'category' field (not 'categories'),
+  // this is simplified to just return the single category if it exists
+  List<Category> getAllCategories() {
+    // Prioritize the new 'categories' list if available and not empty
+    if (categories != null && categories!.isNotEmpty) {
+      return List<Category>.from(categories!); // Return a copy
+    }
+    // Fallback to the legacy single 'category'
+    if (category != null) {
+      return [category!];
+    }
+    // If neither is present, return an empty list
+    return [];
   }
 } 

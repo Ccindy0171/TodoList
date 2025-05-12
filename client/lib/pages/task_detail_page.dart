@@ -350,11 +350,43 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
                       ],
                     ),
                   ),
+                
+                // Display all categories (Moved Up)
+                Builder(
+                  builder: (context) {
+                    final allCategories = todo.getAllCategories();
+                    if (allCategories.isNotEmpty) {
+                      return Padding(
+                        padding: const EdgeInsets.only(top: 4.0, bottom: 6.0), // Adjusted padding
+                        child: Wrap(
+                          spacing: 6,
+                          runSpacing: 4,
+                          children: allCategories.map((category) => Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: parseColor(category.color).withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              category.name.toLowerCase(),
+                              style: TextStyle(
+                                color: parseColor(category.color),
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          )).toList(),
+                        ),
+                      );
+                    }
+                    return const SizedBox.shrink(); // Return empty widget if no categories
+                  }
+                ),
                   
-                // Due date or Completion time
+                // Due date or Completion time (Moved Down)
                 if (showAsCompleted)
                   Padding(
-                    padding: const EdgeInsets.only(bottom: 6),
+                    padding: const EdgeInsets.only(top: 2.0, bottom: 6.0), // Adjusted padding
                     child: Text(
                       'Completed at ${formatDateTime(todo.updatedAt)}',
                       style: TextStyle(
@@ -366,7 +398,7 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
                   )
                 else if (todo.dueDate != null)
                   Padding(
-                    padding: const EdgeInsets.only(bottom: 6),
+                    padding: const EdgeInsets.only(top: 2.0, bottom: 6.0), // Adjusted padding
                     child: Text(
                       showTimeOnly 
                           ? 'Time: ${formatTimeOnly(todo.dueDate!)}'
@@ -374,24 +406,6 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
                       style: TextStyle(
                         color: Colors.grey[700],
                         fontSize: 13,
-                      ),
-                    ),
-                  ),
-                
-                // Category tag at the bottom
-                if (todo.category != null)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: parseColor(todo.category!.color).withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      todo.category!.name.toLowerCase(),
-                      style: TextStyle(
-                        color: parseColor(todo.category!.color),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
                       ),
                     ),
                   ),

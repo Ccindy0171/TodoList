@@ -5,6 +5,7 @@ import '../providers/todo_provider.dart';
 import '../providers/category_provider.dart';
 import '../models/category.dart';
 import '../models/todo.dart';
+import '../l10n/app_localizations.dart';
 
 class TodoLists extends StatelessWidget {
   const TodoLists({super.key});
@@ -12,6 +13,8 @@ class TodoLists extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     print('? TodoLists: build() - Building widget');
+    final localizations = AppLocalizations.of(context);
+    
     return Consumer2<TodoProvider, CategoryProvider>(
       builder: (context, todoProvider, categoryProvider, child) {
         print('? TodoLists: Consumer rebuilding with provider hashCode: ${todoProvider.hashCode}');
@@ -40,7 +43,7 @@ class TodoLists extends StatelessWidget {
           children: [
             // General category (no category)
             CategoryListTile(
-              title: 'General',
+              title: localizations.general,
               icon: Icons.folder_outlined,
               color: Colors.grey,
               count: generalTodos.length,
@@ -56,10 +59,10 @@ class TodoLists extends StatelessWidget {
                 child: Center(
                   child: Column(
                     children: [
-                      const Text('No categories found'),
+                      Text(localizations.noCategoriesFound),
                       TextButton(
                         onPressed: () => categoryProvider.loadCategories(),
-                        child: const Text('Refresh Categories'),
+                        child: Text(localizations.refreshCategories),
                       ),
                     ],
                   ),
@@ -94,16 +97,16 @@ class TodoLists extends StatelessWidget {
                   return await showDialog<bool>(
                     context: context,
                     builder: (context) => AlertDialog(
-                      title: const Text('Delete Category'),
-                      content: Text('Are you sure you want to delete the category "${category.name}"? This will not delete the tasks in this category.'),
+                      title: Text(localizations.deleteCategory),
+                      content: Text(localizations.deleteConfirm.replaceAll('{name}', category.name)),
                       actions: [
                         TextButton(
                           onPressed: () => Navigator.of(context).pop(false),
-                          child: const Text('Cancel'),
+                          child: Text(localizations.cancel),
                         ),
                         TextButton(
                           onPressed: () => Navigator.of(context).pop(true),
-                          child: const Text('Delete'),
+                          child: Text(localizations.delete),
                         ),
                       ],
                     ),
@@ -116,14 +119,14 @@ class TodoLists extends StatelessWidget {
                   if (success) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        content: Text('${category.name} category deleted'),
+                        content: Text(localizations.categoryDeleted.replaceAll('{name}', category.name)),
                         backgroundColor: Colors.green,
                       ),
                     );
                   } else {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        content: Text('Failed to delete ${category.name}'),
+                        content: Text(localizations.deleteFailed.replaceAll('{name}', category.name)),
                         backgroundColor: Colors.red,
                       ),
                     );

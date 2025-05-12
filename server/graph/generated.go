@@ -75,6 +75,7 @@ type ComplexityRoot struct {
 
 	Todo struct {
 		CategoryID  func(childComplexity int) int
+		CategoryIds func(childComplexity int) int
 		Completed   func(childComplexity int) int
 		CreatedAt   func(childComplexity int) int
 		Description func(childComplexity int) int
@@ -88,6 +89,7 @@ type ComplexityRoot struct {
 	}
 
 	TodoOutput struct {
+		Categories  func(childComplexity int) int
 		Category    func(childComplexity int) int
 		Completed   func(childComplexity int) int
 		Description func(childComplexity int) int
@@ -305,6 +307,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Todo.CategoryID(childComplexity), true
 
+	case "Todo.categoryIds":
+		if e.complexity.Todo.CategoryIds == nil {
+			break
+		}
+
+		return e.complexity.Todo.CategoryIds(childComplexity), true
+
 	case "Todo.completed":
 		if e.complexity.Todo.Completed == nil {
 			break
@@ -374,6 +383,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Todo.UpdatedAt(childComplexity), true
+
+	case "TodoOutput.categories":
+		if e.complexity.TodoOutput.Categories == nil {
+			break
+		}
+
+		return e.complexity.TodoOutput.Categories(childComplexity), true
 
 	case "TodoOutput.category":
 		if e.complexity.TodoOutput.Category == nil {
@@ -1230,6 +1246,8 @@ func (ec *executionContext) fieldContext_Mutation_createTodo(ctx context.Context
 				return ec.fieldContext_TodoOutput_completed(ctx, field)
 			case "category":
 				return ec.fieldContext_TodoOutput_category(ctx, field)
+			case "categories":
+				return ec.fieldContext_TodoOutput_categories(ctx, field)
 			case "dueDate":
 				return ec.fieldContext_TodoOutput_dueDate(ctx, field)
 			case "location":
@@ -1307,6 +1325,8 @@ func (ec *executionContext) fieldContext_Mutation_updateTodo(ctx context.Context
 				return ec.fieldContext_TodoOutput_completed(ctx, field)
 			case "category":
 				return ec.fieldContext_TodoOutput_category(ctx, field)
+			case "categories":
+				return ec.fieldContext_TodoOutput_categories(ctx, field)
 			case "dueDate":
 				return ec.fieldContext_TodoOutput_dueDate(ctx, field)
 			case "location":
@@ -1384,6 +1404,8 @@ func (ec *executionContext) fieldContext_Mutation_toggleTodo(ctx context.Context
 				return ec.fieldContext_TodoOutput_completed(ctx, field)
 			case "category":
 				return ec.fieldContext_TodoOutput_category(ctx, field)
+			case "categories":
+				return ec.fieldContext_TodoOutput_categories(ctx, field)
 			case "dueDate":
 				return ec.fieldContext_TodoOutput_dueDate(ctx, field)
 			case "location":
@@ -1705,6 +1727,8 @@ func (ec *executionContext) fieldContext_Query_todos(ctx context.Context, field 
 				return ec.fieldContext_TodoOutput_completed(ctx, field)
 			case "category":
 				return ec.fieldContext_TodoOutput_category(ctx, field)
+			case "categories":
+				return ec.fieldContext_TodoOutput_categories(ctx, field)
 			case "dueDate":
 				return ec.fieldContext_TodoOutput_dueDate(ctx, field)
 			case "location":
@@ -1779,6 +1803,8 @@ func (ec *executionContext) fieldContext_Query_todo(ctx context.Context, field g
 				return ec.fieldContext_TodoOutput_completed(ctx, field)
 			case "category":
 				return ec.fieldContext_TodoOutput_category(ctx, field)
+			case "categories":
+				return ec.fieldContext_TodoOutput_categories(ctx, field)
 			case "dueDate":
 				return ec.fieldContext_TodoOutput_dueDate(ctx, field)
 			case "location":
@@ -2272,6 +2298,47 @@ func (ec *executionContext) fieldContext_Todo_categoryId(_ context.Context, fiel
 	return fc, nil
 }
 
+func (ec *executionContext) _Todo_categoryIds(ctx context.Context, field graphql.CollectedField, obj *model.Todo) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Todo_categoryIds(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.CategoryIds, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.([]string)
+	fc.Result = res
+	return ec.marshalOID2ᚕstringᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Todo_categoryIds(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Todo",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Todo_dueDate(ctx context.Context, field graphql.CollectedField, obj *model.Todo) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Todo_dueDate(ctx, field)
 	if err != nil {
@@ -2729,6 +2796,59 @@ func (ec *executionContext) _TodoOutput_category(ctx context.Context, field grap
 }
 
 func (ec *executionContext) fieldContext_TodoOutput_category(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TodoOutput",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_Category_id(ctx, field)
+			case "name":
+				return ec.fieldContext_Category_name(ctx, field)
+			case "color":
+				return ec.fieldContext_Category_color(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_Category_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_Category_updatedAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Category", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TodoOutput_categories(ctx context.Context, field graphql.CollectedField, obj *model.TodoOutput) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_TodoOutput_categories(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Categories, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.([]*model.Category)
+	fc.Result = res
+	return ec.marshalOCategory2ᚕᚖserverᚋgraphᚋmodelᚐCategoryᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_TodoOutput_categories(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "TodoOutput",
 		Field:      field,
@@ -4956,7 +5076,7 @@ func (ec *executionContext) unmarshalInputTodoFilter(ctx context.Context, obj an
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"completed", "categoryId", "startDate", "endDate", "updatedBefore", "updatedAfter", "priority", "tags", "noCategoryOnly"}
+	fieldsInOrder := [...]string{"completed", "categoryId", "categoryIds", "startDate", "endDate", "updatedBefore", "updatedAfter", "priority", "tags", "noCategoryOnly"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -4977,6 +5097,13 @@ func (ec *executionContext) unmarshalInputTodoFilter(ctx context.Context, obj an
 				return it, err
 			}
 			it.CategoryID = data
+		case "categoryIds":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("categoryIds"))
+			data, err := ec.unmarshalOID2ᚕstringᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.CategoryIds = data
 		case "startDate":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("startDate"))
 			data, err := ec.unmarshalOTime2ᚖtimeᚐTime(ctx, v)
@@ -5039,7 +5166,7 @@ func (ec *executionContext) unmarshalInputTodoInput(ctx context.Context, obj any
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"title", "description", "categoryId", "dueDate", "location", "priority", "tags"}
+	fieldsInOrder := [...]string{"title", "description", "categoryId", "categoryIds", "dueDate", "location", "priority", "tags", "completed"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -5067,6 +5194,13 @@ func (ec *executionContext) unmarshalInputTodoInput(ctx context.Context, obj any
 				return it, err
 			}
 			it.CategoryID = data
+		case "categoryIds":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("categoryIds"))
+			data, err := ec.unmarshalOID2ᚕstringᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.CategoryIds = data
 		case "dueDate":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("dueDate"))
 			data, err := ec.unmarshalNTime2timeᚐTime(ctx, v)
@@ -5095,6 +5229,13 @@ func (ec *executionContext) unmarshalInputTodoInput(ctx context.Context, obj any
 				return it, err
 			}
 			it.Tags = data
+		case "completed":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("completed"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Completed = data
 		}
 	}
 
@@ -5421,6 +5562,8 @@ func (ec *executionContext) _Todo(ctx context.Context, sel ast.SelectionSet, obj
 			}
 		case "categoryId":
 			out.Values[i] = ec._Todo_categoryId(ctx, field, obj)
+		case "categoryIds":
+			out.Values[i] = ec._Todo_categoryIds(ctx, field, obj)
 		case "dueDate":
 			out.Values[i] = ec._Todo_dueDate(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -5495,6 +5638,8 @@ func (ec *executionContext) _TodoOutput(ctx context.Context, sel ast.SelectionSe
 			}
 		case "category":
 			out.Values[i] = ec._TodoOutput_category(ctx, field, obj)
+		case "categories":
+			out.Values[i] = ec._TodoOutput_categories(ctx, field, obj)
 		case "dueDate":
 			out.Values[i] = ec._TodoOutput_dueDate(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -6332,11 +6477,94 @@ func (ec *executionContext) marshalOBoolean2ᚖbool(ctx context.Context, sel ast
 	return res
 }
 
+func (ec *executionContext) marshalOCategory2ᚕᚖserverᚋgraphᚋmodelᚐCategoryᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Category) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNCategory2ᚖserverᚋgraphᚋmodelᚐCategory(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
 func (ec *executionContext) marshalOCategory2ᚖserverᚋgraphᚋmodelᚐCategory(ctx context.Context, sel ast.SelectionSet, v *model.Category) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
 	return ec._Category(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalOID2ᚕstringᚄ(ctx context.Context, v any) ([]string, error) {
+	if v == nil {
+		return nil, nil
+	}
+	var vSlice []any
+	vSlice = graphql.CoerceList(v)
+	var err error
+	res := make([]string, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNID2string(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) marshalOID2ᚕstringᚄ(ctx context.Context, sel ast.SelectionSet, v []string) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	ret := make(graphql.Array, len(v))
+	for i := range v {
+		ret[i] = ec.marshalNID2string(ctx, sel, v[i])
+	}
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
 }
 
 func (ec *executionContext) unmarshalOID2ᚖstring(ctx context.Context, v any) (*string, error) {

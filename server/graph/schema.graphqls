@@ -17,6 +17,7 @@ type Todo {
   description: String
   completed: Boolean!
   categoryId: ID
+  categoryIds: [ID!]
   dueDate: Time!
   location: String
   priority: Int
@@ -31,6 +32,7 @@ type TodoOutput {
   description: String
   completed: Boolean!
   category: Category
+  categories: [Category!]
   dueDate: Time!
   location: String
   priority: Int
@@ -42,15 +44,18 @@ input TodoInput {
   title: String!
   description: String
   categoryId: ID
+  categoryIds: [ID!]
   dueDate: Time!
   location: String
   priority: Int
   tags: [String!]
+  completed: Boolean
 }
 
 input TodoFilter {
   completed: Boolean
   categoryId: ID
+  categoryIds: [ID!]
   startDate: Time
   endDate: Time
   updatedBefore: Time

@@ -362,6 +362,7 @@ class GraphQLService {
   Future<List<Todo>> getTodos({
     bool? completed,
     String? categoryId,
+    List<String>? categoryIds,
     bool? noCategoryOnly,
     DateTime? startDate,
     DateTime? endDate,
@@ -373,16 +374,19 @@ class GraphQLService {
     // Ensure initialization
     await ensureInitialized();
     
-    print('? GraphQL Request: getTodos(completed: $completed, categoryId: $categoryId, noCategoryOnly: $noCategoryOnly)');
+    print('? GraphQL Request: getTodos(completed: $completed, categoryId: $categoryId, categoryIds: $categoryIds, noCategoryOnly: $noCategoryOnly)');
     
     Map<String, dynamic> filterMap = {};
     
     if (completed != null) filterMap['completed'] = completed;
     
-    // Handle categoryId and noCategoryOnly
+    // Handle categoryId, categoryIds, and noCategoryOnly
     if (categoryId == 'none' || noCategoryOnly == true) {
       filterMap['noCategoryOnly'] = true;
       print('? Setting noCategoryOnly=true for filter');
+    } else if (categoryIds != null && categoryIds.isNotEmpty) {
+      filterMap['categoryIds'] = categoryIds;
+      print('? Setting categoryIds=$categoryIds for filter');
     } else if (categoryId != null && categoryId.isNotEmpty && categoryId != 'General') {
       filterMap['categoryId'] = categoryId;
       print('? Setting categoryId=$categoryId for filter');
@@ -412,6 +416,11 @@ class GraphQLService {
           description
           completed
           category {
+            id
+            name
+            color
+          }
+          categories {
             id
             name
             color
@@ -481,7 +490,7 @@ class GraphQLService {
   Future<Todo> createTodo({
     required String title,
     String? description,
-    String? categoryId,
+    List<String>? categoryIds,
     DateTime? dueDate,
     String? location,
     int? priority,
@@ -490,7 +499,10 @@ class GraphQLService {
     // Ensure initialization
     await ensureInitialized();
     
-    print('? GraphQL Request: createTodo(title: $title, categoryId: $categoryId)');
+    print('? GraphQL Request: createTodo() - START');
+    print('? GraphQL Request: title: "$title"');
+    print('? GraphQL Request: categoryIds: $categoryIds');
+    print('? GraphQL Request: dueDate: $dueDate');
     
     final Map<String, dynamic> inputMap = {
       'title': title,
@@ -498,31 +510,36 @@ class GraphQLService {
     
     if (description != null && description.isNotEmpty) {
       inputMap['description'] = description;
+      print('? GraphQL Request: Adding description: ${description.length} chars');
     }
     
-    // Only add categoryId if it has a valid value
-    if (categoryId != null && categoryId.isNotEmpty && 
-        categoryId != 'none' && categoryId != 'General') {
-      inputMap['categoryId'] = categoryId;
-      print('? Setting categoryId: $categoryId');
+    if (categoryIds != null && categoryIds.isNotEmpty) {
+      // Use the proper categoryIds field for multiple categories
+      inputMap['categoryIds'] = categoryIds;
+      print('? GraphQL Request: Setting categoryIds: $categoryIds');
     } else {
-      print('? Creating task with no category');
+      print('? GraphQL Request: Creating task with no category');
     }
     
     if (dueDate != null) {
-      inputMap['dueDate'] = _formatDateTime(dueDate);
+      final formattedDate = _formatDateTime(dueDate);
+      inputMap['dueDate'] = formattedDate;
+      print('? GraphQL Request: Setting dueDate: $formattedDate');
     }
     
     if (location != null && location.isNotEmpty) {
       inputMap['location'] = location;
+      print('? GraphQL Request: Setting location: $location');
     }
     
     if (priority != null) {
       inputMap['priority'] = priority;
+      print('? GraphQL Request: Setting priority: $priority');
     }
     
     if (tags != null && tags.isNotEmpty) {
       inputMap['tags'] = tags;
+      print('? GraphQL Request: Setting tags: $tags');
     }
     
     final variables = {
@@ -531,7 +548,7 @@ class GraphQLService {
     
     print('? GraphQL Variables: ${variables.toString()}');
 
-    // Mutation WITHOUT createdAt field in category
+    // Update mutation to support multiple categories
     const String mutation = '''
       mutation CreateTodo(\$input: TodoInput!) {
         createTodo(input: \$input) {
@@ -540,6 +557,11 @@ class GraphQLService {
           description
           completed
           category {
+            id
+            name
+            color
+          }
+          categories {
             id
             name
             color
@@ -553,22 +575,69 @@ class GraphQLService {
       }
     ''';
 
-    final result = await _client.mutate(
+    try {
+      print('? GraphQL Request: Sending mutation to: $_serverUrl');
+      
+      // Use the retry mechanism for the mutation
+      final result = await _withRetry(() => _client.mutate(
       MutationOptions(
         document: gql(mutation),
         variables: variables,
         fetchPolicy: FetchPolicy.noCache,
       ),
-    );
+      ));
 
     if (result.hasException) {
       print('? GraphQL Error: ${result.exception.toString()}');
+        
+        // Provide more detailed error information based on exception type
+        if (result.exception is OperationException) {
+          final opException = result.exception as OperationException;
+          
+          if (opException.linkException != null) {
+            print('? GraphQL Link Error: ${opException.linkException.toString()}');
+            if (opException.linkException.toString().contains('Failed host lookup')) {
+              print('? GraphQL: DNS resolution failed - check network connection and server URL');
+            }
+          }
+          
+          if (opException.graphqlErrors.isNotEmpty) {
+            for (var error in opException.graphqlErrors) {
+              print('? GraphQL Error: ${error.message}');
+              print('? GraphQL Error Location: ${error.locations}');
+              print('? GraphQL Error Extensions: ${error.extensions}');
+            }
+          }
+        }
+        
       throw Exception(result.exception.toString());
     }
 
-    final todo = Todo.fromJson(result.data?['createTodo']);
-    print('? GraphQL Response: Todo created successfully with ID: ${todo.id}');
-    return todo;
+      if (result.data == null || result.data!['createTodo'] == null) {
+        print('? GraphQL Error: Received null response data');
+        throw Exception('Server returned null response for createTodo mutation');
+      }
+
+      final todo = Todo.fromJson(result.data!['createTodo']);
+      print('? GraphQL Response: Todo created successfully with ID: ${todo.id}');
+      print('? GraphQL Response: Todo title: ${todo.title}');
+      
+      // Log both single category and categories
+      if (todo.category != null) {
+        print('? GraphQL Response: Todo primary category: ${todo.category!.id}:${todo.category!.name}');
+      }
+      
+      if (todo.categories != null && todo.categories!.isNotEmpty) {
+        print('? GraphQL Response: Todo has ${todo.categories!.length} categories');
+      } else {
+        print('? GraphQL Response: Todo has no categories');
+      }
+      
+      return todo;
+    } catch (e) {
+      print('? GraphQL createTodo ERROR: $e');
+      throw Exception('Failed to create todo: $e');
+    }
   }
 
   Future<Todo> toggleTodo(String id) async {
@@ -585,6 +654,11 @@ class GraphQLService {
           description
           completed
           category {
+            id
+            name
+            color
+          }
+          categories {
             id
             name
             color
@@ -662,16 +736,17 @@ class GraphQLService {
     required String id,
     required String title,
     String? description,
-    String? categoryId,
+    List<String>? categoryIds,
     required DateTime dueDate,
     String? location,
     int? priority,
     List<String>? tags,
+    bool? completed,
   }) async {
     // Ensure initialization
     await ensureInitialized();
     
-    print('? GraphQL Request: updateTodo(id: $id, title: $title, categoryId: $categoryId)');
+    print('? GraphQL Request: updateTodo(id: $id, title: $title, categoryIds: $categoryIds)');
     
     final Map<String, dynamic> inputMap = {
       'title': title,
@@ -681,13 +756,12 @@ class GraphQLService {
       inputMap['description'] = description;
     }
     
-    // Only add categoryId if it has a valid value
-    if (categoryId != null && categoryId.isNotEmpty && 
-        categoryId != 'none' && categoryId != 'General') {
-      inputMap['categoryId'] = categoryId;
-      print('? Setting categoryId: $categoryId');
+    if (categoryIds != null && categoryIds.isNotEmpty) {
+      // Use proper categoryIds field
+      inputMap['categoryIds'] = categoryIds;
+      print('? GraphQL Request: Setting categoryIds: $categoryIds');
     } else {
-      print('? Updating task with no category');
+      print('? GraphQL Request: Updating task with no category');
     }
     
     if (dueDate != null) {
@@ -706,6 +780,10 @@ class GraphQLService {
       inputMap['tags'] = tags;
     }
     
+    if (completed != null) {
+      inputMap['completed'] = completed;
+    }
+    
     final variables = {
       'id': id,
       'input': inputMap
@@ -721,6 +799,11 @@ class GraphQLService {
           description
           completed
           category {
+            id
+            name
+            color
+          }
+          categories {
             id
             name
             color

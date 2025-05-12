@@ -31,6 +31,7 @@ type Todo struct {
 	Description *string   `json:"description,omitempty"`
 	Completed   bool      `json:"completed"`
 	CategoryID  *string   `json:"categoryId,omitempty"`
+	CategoryIds []string  `json:"categoryIds,omitempty"`
 	DueDate     time.Time `json:"dueDate"`
 	Location    *string   `json:"location,omitempty"`
 	Priority    *int32    `json:"priority,omitempty"`
@@ -42,6 +43,7 @@ type Todo struct {
 type TodoFilter struct {
 	Completed      *bool      `json:"completed,omitempty"`
 	CategoryID     *string    `json:"categoryId,omitempty"`
+	CategoryIds    []string   `json:"categoryIds,omitempty"`
 	StartDate      *time.Time `json:"startDate,omitempty"`
 	EndDate        *time.Time `json:"endDate,omitempty"`
 	UpdatedBefore  *time.Time `json:"updatedBefore,omitempty"`
@@ -55,21 +57,24 @@ type TodoInput struct {
 	Title       string    `json:"title"`
 	Description *string   `json:"description,omitempty"`
 	CategoryID  *string   `json:"categoryId,omitempty"`
+	CategoryIds []string  `json:"categoryIds,omitempty"`
 	DueDate     time.Time `json:"dueDate"`
 	Location    *string   `json:"location,omitempty"`
 	Priority    *int32    `json:"priority,omitempty"`
 	Tags        []string  `json:"tags,omitempty"`
+	Completed   *bool     `json:"completed,omitempty"`
 }
 
 type TodoOutput struct {
-	ID          string    `json:"id"`
-	Title       string    `json:"title"`
-	Description *string   `json:"description,omitempty"`
-	Completed   bool      `json:"completed"`
-	Category    *Category `json:"category,omitempty"`
-	DueDate     time.Time `json:"dueDate"`
-	Location    *string   `json:"location,omitempty"`
-	Priority    *int32    `json:"priority,omitempty"`
-	Tags        []string  `json:"tags,omitempty"`
-	UpdatedAt   time.Time `json:"updatedAt"`
+	ID          string      `json:"id"`
+	Title       string      `json:"title"`
+	Description *string     `json:"description,omitempty"`
+	Completed   bool        `json:"completed"`
+	Category    *Category   `json:"category,omitempty"`
+	Categories  []*Category `json:"categories,omitempty"`
+	DueDate     time.Time   `json:"dueDate"`
+	Location    *string     `json:"location,omitempty"`
+	Priority    *int32      `json:"priority,omitempty"`
+	Tags        []string    `json:"tags,omitempty"`
+	UpdatedAt   time.Time   `json:"updatedAt"`
 }

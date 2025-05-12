@@ -5,6 +5,9 @@ import '../providers/todo_provider.dart';
 import '../providers/category_provider.dart';
 import '../models/category.dart' as models;
 import 'package:intl/intl.dart';
+import '../widgets/category_selector.dart';
+import '../l10n/app_localizations.dart';
+import '../utils/encoding_helper.dart';
 
 class TaskEditPage extends StatefulWidget {
   final Todo task;
@@ -20,38 +23,47 @@ class TaskEditPage extends StatefulWidget {
 
 class _TaskEditPageState extends State<TaskEditPage> {
   final _formKey = GlobalKey<FormState>();
-  late TextEditingController _titleController;
-  late TextEditingController _descriptionController;
-  late TextEditingController _locationController;
+  final _titleController = TextEditingController();
+  final _descriptionController = TextEditingController();
+  final _locationController = TextEditingController();
   DateTime? _selectedDate;
   TimeOfDay? _selectedTime;
-  String? _selectedCategoryId;
+  List<String> _selectedCategoryIds = [];
   bool _isLoading = false;
   String? _error;
 
   @override
   void initState() {
     super.initState();
-    _titleController = TextEditingController(text: widget.task.title);
-    _descriptionController = TextEditingController(text: widget.task.description ?? '');
-    _locationController = TextEditingController(text: widget.task.location ?? '');
+    _titleController.text = widget.task.title;
+    if (widget.task.description != null) {
+      _descriptionController.text = widget.task.description!;
+    }
+    if (widget.task.location != null) {
+      _locationController.text = widget.task.location!;
+    }
     
     if (widget.task.dueDate != null) {
-      _selectedDate = DateTime(
-        widget.task.dueDate!.year,
-        widget.task.dueDate!.month,
-        widget.task.dueDate!.day,
-      );
-      _selectedTime = TimeOfDay(
-        hour: widget.task.dueDate!.hour,
-        minute: widget.task.dueDate!.minute,
-      );
+      _selectedDate = widget.task.dueDate;
+      _selectedTime = TimeOfDay.fromDateTime(widget.task.dueDate!);
     } else {
       _selectedDate = DateTime.now();
       _selectedTime = TimeOfDay.now();
     }
     
-    _selectedCategoryId = widget.task.category?.id;
+    _selectedCategoryIds = [];
+    
+    if (widget.task.category != null) {
+      _selectedCategoryIds.add(widget.task.category!.id);
+    }
+    
+    if (widget.task.categories != null) {
+      for (final category in widget.task.categories!) {
+        if (!_selectedCategoryIds.contains(category.id)) {
+          _selectedCategoryIds.add(category.id);
+        }
+      }
+    }
     
     // Load categories
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -93,16 +105,16 @@ class _TaskEditPageState extends State<TaskEditPage> {
     }
   }
 
-  Future<void> _saveTask() async {
-    if (_formKey.currentState!.validate()) {
+  Future<void> _updateTask() async {
+    if (!_formKey.currentState!.validate()) return;
+    
       setState(() {
         _isLoading = true;
         _error = null;
       });
 
       try {
-        // Combine date and time into a single DateTime
-        final DateTime dueDate = DateTime(
+      DateTime dueDate = DateTime(
           _selectedDate!.year,
           _selectedDate!.month,
           _selectedDate!.day,
@@ -110,28 +122,27 @@ class _TaskEditPageState extends State<TaskEditPage> {
           _selectedTime!.minute,
         );
 
-        // Call the update method in TodoProvider
-        await context.read<TodoProvider>().updateTodo(
+      final todoProvider = context.read<TodoProvider>();
+      await todoProvider.updateTodo(
           id: widget.task.id,
-          title: _titleController.text,
-          description: _descriptionController.text.isEmpty ? null : _descriptionController.text,
-          categoryId: _selectedCategoryId,
+        title: EncodingHelper.ensureUtf8(_titleController.text),
+        description: _descriptionController.text.isEmpty ? null : 
+            EncodingHelper.ensureUtf8(_descriptionController.text),
+        categoryIds: _selectedCategoryIds.isEmpty ? null : _selectedCategoryIds,
           dueDate: dueDate,
-          location: _locationController.text.isEmpty ? null : _locationController.text,
+        location: _locationController.text.isEmpty ? null : 
+            EncodingHelper.ensureUtf8(_locationController.text),
+        completed: widget.task.completed,
         );
 
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Task updated successfully')),
-          );
-          Navigator.pop(context, true); // Return true to indicate task was updated
+        Navigator.of(context).pop(true); // return true to indicate success
         }
       } catch (e) {
         setState(() {
           _error = e.toString();
           _isLoading = false;
         });
-      }
     }
   }
 
@@ -147,7 +158,7 @@ class _TaskEditPageState extends State<TaskEditPage> {
         actions: [
           IconButton(
             icon: const Icon(Icons.save),
-            onPressed: _saveTask,
+            onPressed: _updateTask,
           ),
         ],
       ),
@@ -248,40 +259,13 @@ class _TaskEditPageState extends State<TaskEditPage> {
                       final sortedCategories = List<models.Category>.from(categoryProvider.categories);
                       sortedCategories.sort((a, b) => a.name.compareTo(b.name));
 
-                      return DropdownButtonFormField<String?>(
-                        value: _selectedCategoryId,
-                        decoration: const InputDecoration(
-                          labelText: 'Category',
-                          border: OutlineInputBorder(),
-                        ),
-                        items: [
-                          const DropdownMenuItem<String?>(
-                            value: null,
-                            child: Text('None'),
-                          ),
-                          ...sortedCategories.map((category) {
-                            return DropdownMenuItem<String?>(
-                              value: category.id,
-                              child: Row(
-                                children: [
-                                  Container(
-                                    width: 16,
-                                    height: 16,
-                                    decoration: BoxDecoration(
-                                      color: Color(int.parse(category.color.replaceAll('#', '0xFF'))),
-                                      shape: BoxShape.circle,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Text(category.name),
-                                ],
-                              ),
-                            );
-                          }),
-                        ],
-                        onChanged: (value) {
+                      return CategorySelector(
+                        categories: sortedCategories,
+                        selectedIds: _selectedCategoryIds,
+                        isLoading: categoryProvider.isLoading,
+                        onChanged: (selectedIds) {
                           setState(() {
-                            _selectedCategoryId = value;
+                            _selectedCategoryIds = selectedIds;
                           });
                         },
                       );
