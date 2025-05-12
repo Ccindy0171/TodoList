@@ -185,11 +185,16 @@ class CategoryListTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final localizations = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(10),
       ),
+      color: theme.cardColor,
+      shadowColor: theme.shadowColor,
       elevation: 2,
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
@@ -228,9 +233,8 @@ class CategoryListTile extends StatelessWidget {
               Expanded(
                 child: Text(
                   title,
-                  style: const TextStyle(
+                  style: theme.textTheme.bodyLarge?.copyWith(
                     fontWeight: FontWeight.w600,
-                    fontSize: 16,
                   ),
                 ),
               ),
@@ -253,16 +257,15 @@ class CategoryListTile extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Text(
-                      '$count ${count == 1 ? 'task' : 'tasks'}',
-                      style: TextStyle(
-                        color: Colors.grey[700],
+                      '$count ${count == 1 ? localizations.task : localizations.tasks}',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onSurface.withOpacity(0.7),
                       ),
                     ),
                     if (completedCount > 0)
                       Text(
                         '$completedCount completed',
-                        style: TextStyle(
-                          fontSize: 12,
+                        style: theme.textTheme.bodySmall?.copyWith(
                           color: Colors.green[700],
                         ),
                       ),

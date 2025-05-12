@@ -116,11 +116,15 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
   @override
   Widget build(BuildContext context) {
     final localizations = AppLocalizations.of(context);
+    final theme = Theme.of(context); // Get theme
     
     return Scaffold(
-      backgroundColor: Colors.grey[100],
+      // Remove hardcoded background color, let theme handle it
+      // backgroundColor: Colors.grey[100],
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
+        // Make AppBar background consistent with theme's scaffold background
+        backgroundColor: theme.scaffoldBackgroundColor,
+        foregroundColor: theme.appBarTheme.foregroundColor ?? theme.colorScheme.onSurface, // Ensure icons/text are visible
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
@@ -228,6 +232,7 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
 
   Widget _buildTaskItem(BuildContext context, Todo todo) {
     final localizations = AppLocalizations.of(context);
+    final theme = Theme.of(context); // Get theme data
     
     // Check if this task is being optimistically shown as completed
     final isOptimisticallyCompleted = _optimisticallyCompletedIds.contains(todo.id);
@@ -263,6 +268,7 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
         }
       } catch (e) {
         // Default color if parsing fails
+        print('Error parsing color: $colorString, Error: $e'); // Log error
         return Colors.grey;
       }
     }
@@ -270,11 +276,11 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: theme.cardColor, // Use theme card color
         borderRadius: BorderRadius.circular(10),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: theme.shadowColor.withOpacity(0.05), // Use theme shadow color
             blurRadius: 3,
             offset: const Offset(0, 1),
           ),
@@ -316,7 +322,8 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
               },
               child: Icon(
                 showAsCompleted ? Icons.check_circle : Icons.radio_button_unchecked,
-                color: showAsCompleted ? Colors.green : widget.color,
+                // Use theme's primary color when completed, otherwise widget's color
+                color: showAsCompleted ? theme.colorScheme.primary : widget.color,
                 size: 26,
               ),
             ),
@@ -324,10 +331,13 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
               padding: const EdgeInsets.only(bottom: 4),
               child: Text(
                 todo.title,
-                style: TextStyle(
-                  fontSize: 16,
+                style: theme.textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.w600,
                   decoration: showAsCompleted ? TextDecoration.lineThrough : null,
+                  // Ensure text color adapts
+                  color: showAsCompleted 
+                    ? theme.textTheme.bodySmall?.color 
+                    : theme.textTheme.titleMedium?.color,
                 ),
               ),
             ),
@@ -340,9 +350,9 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
                     padding: const EdgeInsets.only(bottom: 8),
                     child: Text(
                       _abbreviateText(todo.description!, 50),
-                      style: TextStyle(
-                        color: Colors.grey[700],
-                        fontSize: 14,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        // Use a slightly less prominent color for description
+                        color: theme.textTheme.bodyMedium?.color?.withOpacity(0.8),
                       ),
                     ),
                   ),
@@ -356,14 +366,15 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
                         Icon(
                           Icons.location_on,
                           size: 16,
-                          color: Colors.grey[600],
+                          // Use a secondary icon color
+                          color: theme.iconTheme.color?.withOpacity(0.7),
                         ),
                         const SizedBox(width: 4),
                         Text(
                           todo.location!,
-                          style: TextStyle(
-                            color: Colors.grey[700],
-                            fontSize: 14,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            // Use a slightly less prominent color
+                            color: theme.textTheme.bodyMedium?.color?.withOpacity(0.8),
                           ),
                         ),
                       ],
@@ -380,21 +391,25 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
                         child: Wrap(
                           spacing: 6,
                           runSpacing: 4,
-                          children: allCategories.map((category) => Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: parseColor(category.color).withOpacity(0.2),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text(
-                              category.name.toLowerCase(),
-                              style: TextStyle(
-                                color: parseColor(category.color),
-                                fontSize: 12,
-                                fontWeight: FontWeight.w500,
+                          children: allCategories.map((category) {
+                            final categoryColor = parseColor(category.color);
+                            return Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: categoryColor.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(4),
                               ),
-                            ),
-                          )).toList(),
+                              child: Text(
+                                category.name.toLowerCase(),
+                                style: TextStyle(
+                                  // Use category color for text, ensure sufficient contrast later if needed
+                                  color: categoryColor,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            );
+                          }).toList(),
                         ),
                       );
                     }
@@ -408,10 +423,10 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
                     padding: const EdgeInsets.only(top: 2.0, bottom: 6.0), // Adjusted padding
                     child: Text(
                       'Completed at ${formatDateTime(todo.updatedAt)}',
-                      style: TextStyle(
-                        color: Colors.grey[600],
+                      style: theme.textTheme.bodySmall?.copyWith(
                         fontStyle: FontStyle.italic,
-                        fontSize: 13,
+                        // Use a subtle color
+                        color: theme.textTheme.bodySmall?.color?.withOpacity(0.7),
                       ),
                     ),
                   )
@@ -422,15 +437,17 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
                       showTimeOnly 
                           ? 'Time: ${formatTimeOnly(todo.dueDate!)}'
                           : formatDateTime(todo.dueDate!),
-                      style: TextStyle(
-                        color: Colors.grey[700],
-                        fontSize: 13,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        // Use a slightly less prominent color for date/time
+                        color: theme.textTheme.bodyMedium?.color?.withOpacity(0.8),
                       ),
                     ),
                   ),
               ],
             ),
             trailing: IconButton(
+              // Use theme icon color
+              color: theme.iconTheme.color?.withOpacity(0.7),
               icon: const Icon(Icons.delete_outline),
               onPressed: () {
                 context.read<TodoProvider>().deleteTodo(todo.id).then((_) {

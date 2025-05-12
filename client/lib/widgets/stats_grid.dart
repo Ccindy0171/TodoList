@@ -65,7 +65,7 @@ class StatsGrid extends StatelessWidget {
               // Still show grid with cached data if available
               if (todoProvider.getCachedAllTodos != null && 
                   todoProvider.getCachedAllTodos!.isNotEmpty) ...[
-                _buildStatsGridWithCachedData(todoProvider, localizations),
+                _buildStatsGridWithCachedData(todoProvider, localizations, Theme.of(context)),
               ],
             ],
           );
@@ -76,6 +76,7 @@ class StatsGrid extends StatelessWidget {
         final plannedCount = todoProvider.getCachedUpcomingTodos?.length ?? 0;
         final allCount = todoProvider.getCachedAllTodos?.length ?? 0;
         final completedCount = todoProvider.getCachedAllCompletedTodos?.length ?? 0;
+        final theme = Theme.of(context);
         
         return Column(
           children: [
@@ -196,6 +197,7 @@ class StatsGrid extends StatelessWidget {
     bool isCached = false,
   }) {
     final localizations = AppLocalizations.of(context);
+    final theme = Theme.of(context);
     
     return GestureDetector(
       onTap: onTap ?? () {
@@ -214,11 +216,11 @@ class StatsGrid extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: theme.cardColor,
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: theme.shadowColor.withOpacity(0.05),
               offset: const Offset(0, 2),
               blurRadius: 5,
             ),
@@ -235,8 +237,7 @@ class StatsGrid extends StatelessWidget {
             const SizedBox(height: 12),
             Text(
               title,
-              style: const TextStyle(
-                fontSize: 16,
+              style: theme.textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -255,9 +256,8 @@ class StatsGrid extends StatelessWidget {
                   count != null 
                   ? '$count ${count == 1 ? localizations.task : localizations.tasks}' 
                   : '0 ${localizations.tasks}',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey[600],
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.textTheme.bodySmall?.color,
                   ),
                 ),
             ],
@@ -268,7 +268,7 @@ class StatsGrid extends StatelessWidget {
   }
 
   // Build stats grid with cached data (for offline mode)
-  Widget _buildStatsGridWithCachedData(TodoProvider todoProvider, AppLocalizations localizations) {
+  Widget _buildStatsGridWithCachedData(TodoProvider todoProvider, AppLocalizations localizations, ThemeData theme) {
     // Get counts from cached data
     final todayCount = todoProvider.getCachedTodayTodos?.length ?? 0;
     final plannedCount = todoProvider.getCachedUpcomingTodos?.length ?? 0;
@@ -286,6 +286,7 @@ class StatsGrid extends StatelessWidget {
                 Colors.blue,
                 count: todayCount,
                 localizations: localizations,
+                theme: theme,
               ),
             ),
             const SizedBox(width: 16),
@@ -296,6 +297,7 @@ class StatsGrid extends StatelessWidget {
                 Colors.orange,
                 count: plannedCount,
                 localizations: localizations,
+                theme: theme,
               ),
             ),
           ],
@@ -310,6 +312,7 @@ class StatsGrid extends StatelessWidget {
                 Colors.green,
                 count: allCount,
                 localizations: localizations,
+                theme: theme,
               ),
             ),
             const SizedBox(width: 16),
@@ -320,6 +323,7 @@ class StatsGrid extends StatelessWidget {
                 Colors.purple,
                 count: completedCount,
                 localizations: localizations,
+                theme: theme,
               ),
             ),
           ],
@@ -336,15 +340,16 @@ class StatsGrid extends StatelessWidget {
     int? count,
     bool hasCounter = true,
     required AppLocalizations localizations,
+    required ThemeData theme,
   }) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: theme.cardColor,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: theme.shadowColor.withOpacity(0.05),
             offset: const Offset(0, 2),
             blurRadius: 5,
           ),
@@ -363,10 +368,9 @@ class StatsGrid extends StatelessWidget {
               const SizedBox(width: 8),
               Text(
                 '(Cached)',
-                style: TextStyle(
-                  fontSize: 10,
+                style: theme.textTheme.bodySmall?.copyWith(
                   fontStyle: FontStyle.italic,
-                  color: Colors.grey[400],
+                  color: theme.textTheme.bodySmall?.color?.withOpacity(0.6),
                 ),
               ),
             ],
@@ -374,8 +378,7 @@ class StatsGrid extends StatelessWidget {
           const SizedBox(height: 12),
           Text(
             title,
-            style: const TextStyle(
-              fontSize: 16,
+            style: theme.textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -385,9 +388,8 @@ class StatsGrid extends StatelessWidget {
               count != null 
               ? '$count ${count == 1 ? localizations.task : localizations.tasks}' 
               : '0 ${localizations.tasks}',
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey[600],
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.textTheme.bodySmall?.color,
               ),
             ),
           ],

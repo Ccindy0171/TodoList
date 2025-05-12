@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../providers/todo_provider.dart';
 import '../models/todo.dart';
 import 'task_edit_page.dart';
+import '../l10n/app_localizations.dart';
 
 class CompletedTasksPage extends StatefulWidget {
   const CompletedTasksPage({super.key});
@@ -50,12 +51,15 @@ class _CompletedTasksPageState extends State<CompletedTasksPage> {
 
   @override
   Widget build(BuildContext context) {
+    final localizations = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    
     return Scaffold(
-      backgroundColor: Colors.grey[100],
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
+        backgroundColor: theme.scaffoldBackgroundColor,
+        foregroundColor: theme.appBarTheme.foregroundColor ?? theme.colorScheme.onSurface,
         elevation: 0,
-        title: const Text('Completed Tasks'),
+        title: Text(localizations.completed),
         actions: [
           IconButton(
             icon: const Icon(Icons.filter_list),
@@ -70,9 +74,9 @@ class _CompletedTasksPageState extends State<CompletedTasksPage> {
         child: _isLoading
             ? const Center(child: CircularProgressIndicator())
             : _error != null
-                ? Center(child: Text('Error: $_error'))
+                ? Center(child: Text('${localizations.error}: $_error'))
                 : _completedTasks.isEmpty
-                    ? const Center(child: Text('No completed tasks yet'))
+                    ? Center(child: Text(localizations.noTodos))
                     : ListView.builder(
                         padding: const EdgeInsets.all(16.0),
                         itemCount: _completedTasks.length,
@@ -86,11 +90,34 @@ class _CompletedTasksPageState extends State<CompletedTasksPage> {
   }
 
   Widget _buildTaskItem(BuildContext context, Todo todo) {
+    final localizations = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    
+    Color parseColor(String colorString) {
+      try {
+        if (colorString.startsWith('#')) {
+          return Color(int.parse(colorString.substring(1), radix: 16) + 0xFF000000);
+        } else {
+          return Color(int.parse(colorString, radix: 16));
+        }
+      } catch (e) {
+        print('Error parsing color: $colorString, Error: $e');
+        return Colors.grey;
+      }
+    }
+    
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: theme.cardColor,
         borderRadius: BorderRadius.circular(8),
+        boxShadow: [
+          BoxShadow(
+            color: theme.shadowColor.withOpacity(0.05),
+            blurRadius: 3,
+            offset: const Offset(0, 1),
+          ),
+        ],
       ),
       child: ListTile(
         onTap: () {
@@ -107,41 +134,44 @@ class _CompletedTasksPageState extends State<CompletedTasksPage> {
         },
         leading: Icon(
           Icons.check_circle,
-          color: Colors.green,
+          color: theme.colorScheme.primary,
         ),
         title: Text(
           todo.title,
-          style: const TextStyle(
+          style: theme.textTheme.titleMedium?.copyWith(
             decoration: TextDecoration.lineThrough,
+            color: theme.textTheme.titleMedium?.color?.withOpacity(0.7),
           ),
         ),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (todo.description != null && todo.description!.isNotEmpty)
-              Text(
-                _abbreviateText(todo.description!, 50),
-                style: TextStyle(
-                  color: Colors.grey[600],
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4.0),
+                child: Text(
+                  _abbreviateText(todo.description!, 50),
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
+                  ),
                 ),
               ),
             if (todo.location != null && todo.location!.isNotEmpty)
               Padding(
-                padding: const EdgeInsets.only(top: 4),
+                padding: const EdgeInsets.only(top: 4, bottom: 4.0),
                 child: Row(
                   children: [
                     Icon(
                       Icons.location_on,
                       size: 14,
-                      color: Colors.grey[600],
+                      color: theme.iconTheme.color?.withOpacity(0.7),
                     ),
                     const SizedBox(width: 4),
                     Expanded(
                       child: Text(
                         todo.location!,
-                        style: TextStyle(
-                          color: Colors.grey[600],
-                          fontSize: 12,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.textTheme.bodySmall?.color?.withOpacity(0.7),
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -150,14 +180,16 @@ class _CompletedTasksPageState extends State<CompletedTasksPage> {
                   ],
                 ),
               ),
-            Text(
-              'Completed at ${todo.updatedAt.hour.toString().padLeft(2, '0')}:${todo.updatedAt.minute.toString().padLeft(2, '0')} on ${todo.updatedAt.day.toString().padLeft(2, '0')}/${todo.updatedAt.month.toString().padLeft(2, '0')}/${todo.updatedAt.year}',
-              style: TextStyle(
-                color: Colors.grey[600],
-                fontStyle: FontStyle.italic,
+            Padding(
+              padding: const EdgeInsets.only(top: 4.0, bottom: 4.0),
+              child: Text(
+                'Completed at ${todo.updatedAt.hour.toString().padLeft(2, '0')}:${todo.updatedAt.minute.toString().padLeft(2, '0')} on ${todo.updatedAt.day.toString().padLeft(2, '0')}/${todo.updatedAt.month.toString().padLeft(2, '0')}/${todo.updatedAt.year}',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  fontStyle: FontStyle.italic,
+                  color: theme.textTheme.bodySmall?.color?.withOpacity(0.7),
+                ),
               ),
             ),
-            // Display all categories using getAllCategories()
             Builder(
               builder: (context) {
                 final allCategories = todo.getAllCategories();
@@ -168,17 +200,7 @@ class _CompletedTasksPageState extends State<CompletedTasksPage> {
                       spacing: 6,
                       runSpacing: 4,
                       children: allCategories.map((cat) {
-                        Color categoryColor = Colors.grey; // Default color
-                        try {
-                          if (cat.color.startsWith('#')) {
-                            categoryColor = Color(int.parse(cat.color.substring(1), radix: 16) + 0xFF000000);
-                          } else {
-                            categoryColor = Color(int.parse(cat.color, radix: 16));
-                          }
-                        } catch (e) {
-                          // Log error or handle as needed
-                          print('Error parsing color for category ${cat.name}: ${cat.color}');
-                        }
+                        final categoryColor = parseColor(cat.color);
                         return Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                           decoration: BoxDecoration(
@@ -205,11 +227,13 @@ class _CompletedTasksPageState extends State<CompletedTasksPage> {
         ),
         trailing: IconButton(
           icon: const Icon(Icons.undo),
+          color: theme.iconTheme.color?.withOpacity(0.8),
+          tooltip: localizations.edit,
           onPressed: () {
             context.read<TodoProvider>().toggleTodo(todo.id).then((_) {
               _loadCompletedTasks();
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Task marked as incomplete')),
+                SnackBar(content: Text('Task marked as incomplete')),
               );
             });
           },
