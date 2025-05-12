@@ -253,22 +253,49 @@ class _DateRangeFilterPageState extends State<DateRangeFilterPage> {
                     : Colors.grey[600],
               ),
             ),
-            if (todo.category != null)
-              Container(
-                margin: const EdgeInsets.only(top: 4),
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: Color(int.parse(todo.category!.color.replaceAll('#', '0xFF'))).withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text(
-                  todo.category!.name,
-                  style: TextStyle(
-                    color: Color(int.parse(todo.category!.color.replaceAll('#', '0xFF'))),
-                    fontSize: 12,
-                  ),
-                ),
-              ),
+            // Display all categories using getAllCategories()
+            Builder(
+              builder: (context) {
+                final allCategories = todo.getAllCategories();
+                if (allCategories.isNotEmpty) {
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 6.0, bottom: 2.0),
+                    child: Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      children: allCategories.map((cat) {
+                        Color categoryColor = Colors.grey; // Default color
+                        try {
+                          if (cat.color.startsWith('#')) {
+                            categoryColor = Color(int.parse(cat.color.substring(1), radix: 16) + 0xFF000000);
+                          } else {
+                            categoryColor = Color(int.parse(cat.color, radix: 16));
+                          }
+                        } catch (e) {
+                          print('Error parsing color for category ${cat.name}: ${cat.color}');
+                        }
+                        return Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: categoryColor.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            cat.name.toLowerCase(),
+                            style: TextStyle(
+                              color: categoryColor,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  );
+                }
+                return const SizedBox.shrink();
+              }
+            ),
           ],
         ),
         trailing: IconButton(

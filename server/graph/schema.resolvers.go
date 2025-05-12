@@ -507,6 +507,9 @@ func (r *mutationResolver) CreateCategory(ctx context.Context, input model.Categ
 		return nil, fmt.Errorf("failed to create category: %v", err)
 	}
 
+	// Format the ID to match the SurrealDB format
+	category.ID = "category:⟨" + id + "⟩"
+
 	return category, nil
 }
 

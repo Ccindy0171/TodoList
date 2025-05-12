@@ -126,28 +126,37 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
       print('? AddTaskDialog: Creating new category: ${_newCategoryController.text}');
       final categoryProvider = context.read<CategoryProvider>();
       
-      // Create the category with the selected color - the provider will ensure it's unique
-      final newCategory = await categoryProvider.createCategory(
-        name: _newCategoryController.text,
-        color: _selectedColor,
-      );
-      
-      if (newCategory != null) {
-        print('? AddTaskDialog: Created new category: ${newCategory.id} - ${newCategory.name}');
-        setState(() {
-          _selectedCategoryIds.add(newCategory.id);
-          _isCreatingNewCategory = false;
-          _newCategoryController.clear();
-          _isLoading = false;
-        });
-      } else {
-        print('?? AddTaskDialog: Could not create new category');
-        setState(() {
-          _isCreatingNewCategory = false;
-          _newCategoryController.clear();
-          _isLoading = false;
-        });
+      models.Category? newCategory; // Define newCategory outside the try-catch
+      try {
+        newCategory = await categoryProvider.createCategory(
+          name: _newCategoryController.text,
+          color: _selectedColor,
+        );
+      } catch (e) {
+        print('? AddTaskDialog: Error creating category: $e');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error creating category: $e')),
+          );
+        }
       }
+      
+      // Update state regardless of success/failure, but only add ID if successful
+      setState(() {
+        if (newCategory != null) {
+          print('? AddTaskDialog: Created new category: ${newCategory.id} - ${newCategory.name}');
+          // Ensure the list is modifiable before adding
+          final updatedIds = List<String>.from(_selectedCategoryIds);
+          if (!updatedIds.contains(newCategory.id)) { // Avoid duplicates
+             updatedIds.add(newCategory.id);
+          }
+          _selectedCategoryIds = updatedIds; // Update the state variable
+        }
+        _isCreatingNewCategory = false;
+        _newCategoryController.clear();
+        _isLoading = false;
+        print('? AddTaskDialog: Selected categories after creation: $_selectedCategoryIds');
+      });
     }
   }
 
