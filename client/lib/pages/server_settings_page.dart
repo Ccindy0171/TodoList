@@ -5,6 +5,7 @@ import '../services/network_scanner_service.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../services/graphql_service.dart';
+import '../l10n/app_localizations.dart';
 
 class ServerSettingsPage extends StatefulWidget {
   const ServerSettingsPage({super.key});
@@ -135,9 +136,11 @@ class _ServerSettingsPageState extends State<ServerSettingsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final localizations = AppLocalizations.of(context);
+    
     return Scaffold(
       appBar: AppBar(
-        title: const Text('GraphQL Server Settings'),
+        title: Text(localizations.serverSettings),
       ),
       body: Consumer<ServerDiscoveryProvider>(
         builder: (context, provider, child) {
@@ -145,7 +148,10 @@ class _ServerSettingsPageState extends State<ServerSettingsPage> {
           final selectedUrl = provider.selectedServerUrl;
           
           return SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.only(bottom: 24.0),
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 // Header with action buttons
                 Padding(
@@ -156,7 +162,7 @@ class _ServerSettingsPageState extends State<ServerSettingsPage> {
                         children: [
                           Expanded(
                             child: Text(
-                              'GraphQL Servers',
+                              localizations.serverSettings,
                               style: Theme.of(context).textTheme.headlineSmall,
                             ),
                           ),
@@ -165,7 +171,7 @@ class _ServerSettingsPageState extends State<ServerSettingsPage> {
                                 ? null
                                 : () => provider.scanNetwork(),
                             icon: const Icon(Icons.search),
-                            label: const Text('Scan Network'),
+                            label: Text(localizations.search),
                           ),
                         ],
                       ),
@@ -190,7 +196,7 @@ class _ServerSettingsPageState extends State<ServerSettingsPage> {
                           children: [
                             Expanded(
                               child: Text(
-                                'Current server: $selectedUrl',
+                                '${localizations.connectedTo} $selectedUrl',
                                 style: Theme.of(context).textTheme.bodyMedium,
                               ),
                             ),
@@ -199,7 +205,7 @@ class _ServerSettingsPageState extends State<ServerSettingsPage> {
                                   ? null
                                   : () => _testConnection(selectedUrl),
                               icon: const Icon(Icons.network_check),
-                              label: const Text('Test Connection'),
+                              label: Text(localizations.tryAgain),
                             ),
                           ],
                         ),
@@ -240,7 +246,7 @@ class _ServerSettingsPageState extends State<ServerSettingsPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Add Server Manually',
+                          localizations.serverConfigManual,
                           style: Theme.of(context).textTheme.titleMedium,
                         ),
                         const SizedBox(height: 8),
@@ -301,8 +307,8 @@ class _ServerSettingsPageState extends State<ServerSettingsPage> {
                                       final serverUrl = 'http://$ip:$port/query';
                                       provider.selectServer(serverUrl);
                                       ScaffoldMessenger.of(context).showSnackBar(
-                                        const SnackBar(
-                                          content: Text('Connected to saved server'),
+                                        SnackBar(
+                                          content: Text(localizations.usingConfiguredServer),
                                           duration: Duration(seconds: 2),
                                         ),
                                       );
@@ -330,8 +336,8 @@ class _ServerSettingsPageState extends State<ServerSettingsPage> {
                             onPressed: () async {
                               if (_ipController.text.isEmpty) {
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Please enter an IP address'),
+                                  SnackBar(
+                                    content: Text(localizations.pleaseEnterTitle),
                                   ),
                                 );
                                 return;
@@ -349,20 +355,20 @@ class _ServerSettingsPageState extends State<ServerSettingsPage> {
                                 await provider.selectServer(serverUrl);
                                 
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Server added and selected'),
+                                  SnackBar(
+                                    content: Text(localizations.usingConfiguredServer),
                                   ),
                                 );
                                 _ipController.clear();
                               } else if (mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Failed to add server. Verify it is a valid GraphQL server.'),
+                                  SnackBar(
+                                    content: Text(localizations.cannotConnectToServer),
                                   ),
                                 );
                               }
                             },
-                            child: const Text('Add Server'),
+                            child: Text(localizations.save),
                           ),
                         ),
                       ],
@@ -400,6 +406,8 @@ class _ServerSettingsPageState extends State<ServerSettingsPage> {
   }
 
   void _showServerOptions(BuildContext context, GraphQLServerInfo server) {
+    final localizations = AppLocalizations.of(context);
+    
     showModalBottomSheet(
       context: context,
       builder: (ctx) {
@@ -409,7 +417,7 @@ class _ServerSettingsPageState extends State<ServerSettingsPage> {
             children: [
               ListTile(
                 leading: const Icon(Icons.check),
-                title: const Text('Use this server'),
+                title: Text(localizations.usingConfiguredServer),
                 onTap: () {
                   Navigator.pop(ctx);
                   context.read<ServerDiscoveryProvider>().selectServer(server.url);
@@ -417,7 +425,7 @@ class _ServerSettingsPageState extends State<ServerSettingsPage> {
               ),
               ListTile(
                 leading: const Icon(Icons.edit),
-                title: const Text('Rename'),
+                title: Text(localizations.edit),
                 onTap: () {
                   Navigator.pop(ctx);
                   _showRenameDialog(context, server);
@@ -425,7 +433,7 @@ class _ServerSettingsPageState extends State<ServerSettingsPage> {
               ),
               ListTile(
                 leading: const Icon(Icons.delete),
-                title: const Text('Remove'),
+                title: Text(localizations.delete),
                 onTap: () {
                   Navigator.pop(ctx);
                   _showDeleteConfirmation(context, server);
@@ -439,17 +447,18 @@ class _ServerSettingsPageState extends State<ServerSettingsPage> {
   }
 
   void _showRenameDialog(BuildContext context, GraphQLServerInfo server) {
+    final localizations = AppLocalizations.of(context);
     _serverNameController.text = server.name ?? '';
     
     showDialog(
       context: context,
       builder: (ctx) {
         return AlertDialog(
-          title: const Text('Rename Server'),
+          title: Text(localizations.edit),
           content: TextField(
             controller: _serverNameController,
-            decoration: const InputDecoration(
-              labelText: 'Server Name',
+            decoration: InputDecoration(
+              labelText: localizations.title,
             ),
             autofocus: true,
           ),
@@ -458,7 +467,7 @@ class _ServerSettingsPageState extends State<ServerSettingsPage> {
               onPressed: () {
                 Navigator.pop(ctx);
               },
-              child: const Text('Cancel'),
+              child: Text(localizations.cancel),
             ),
             TextButton(
               onPressed: () {
@@ -470,7 +479,7 @@ class _ServerSettingsPageState extends State<ServerSettingsPage> {
                   Navigator.pop(ctx);
                 }
               },
-              child: const Text('Save'),
+              child: Text(localizations.save),
             ),
           ],
         );
@@ -479,25 +488,27 @@ class _ServerSettingsPageState extends State<ServerSettingsPage> {
   }
 
   void _showDeleteConfirmation(BuildContext context, GraphQLServerInfo server) {
+    final localizations = AppLocalizations.of(context);
+    
     showDialog(
       context: context,
       builder: (ctx) {
         return AlertDialog(
-          title: const Text('Remove Server'),
-          content: Text('Are you sure you want to remove "${server.name ?? server.url}"?'),
+          title: Text(localizations.delete),
+          content: Text(localizations.deleteConfirm.replaceAll('{name}', server.name ?? server.url)),
           actions: [
             TextButton(
               onPressed: () {
                 Navigator.pop(ctx);
               },
-              child: const Text('Cancel'),
+              child: Text(localizations.cancel),
             ),
             TextButton(
               onPressed: () {
                 context.read<ServerDiscoveryProvider>().removeServer(server.url);
                 Navigator.pop(ctx);
               },
-              child: const Text('Remove'),
+              child: Text(localizations.delete),
             ),
           ],
         );
@@ -507,6 +518,8 @@ class _ServerSettingsPageState extends State<ServerSettingsPage> {
 
   // Extract the "No servers found" widget to a separate method for better organization
   Widget _buildNoServersFound(BuildContext context, ServerDiscoveryProvider provider) {
+    final localizations = AppLocalizations.of(context);
+    
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 24.0),
       child: Column(
@@ -519,12 +532,12 @@ class _ServerSettingsPageState extends State<ServerSettingsPage> {
           ),
           const SizedBox(height: 16),
           Text(
-            'No servers found',
+            localizations.noResults,
             style: Theme.of(context).textTheme.titleMedium,
           ),
           const SizedBox(height: 8),
           Text(
-            'Tap "Scan Network" to discover GraphQL servers,\nor add one manually above.',
+            localizations.serverConfigInfo,
             textAlign: TextAlign.center,
             style: TextStyle(color: Colors.grey[600]),
           ),
@@ -532,7 +545,7 @@ class _ServerSettingsPageState extends State<ServerSettingsPage> {
           OutlinedButton.icon(
             onPressed: () => provider.scanNetwork(),
             icon: const Icon(Icons.search),
-            label: const Text('Scan Network'),
+            label: Text(localizations.search),
           ),
         ],
       ),
@@ -541,9 +554,12 @@ class _ServerSettingsPageState extends State<ServerSettingsPage> {
   
   // Extract the server list to a separate method for better organization
   Widget _buildServerList(BuildContext context, List<GraphQLServerInfo> discoveredServers, String? selectedUrl) {
+    final localizations = AppLocalizations.of(context);
+    
     return ListView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(), // Disable scrolling as parent is scrollable
+      padding: EdgeInsets.zero, // Remove padding to avoid unexpected spacing
       itemCount: discoveredServers.length,
       itemBuilder: (context, index) {
         final server = discoveredServers[index];
@@ -567,7 +583,7 @@ class _ServerSettingsPageState extends State<ServerSettingsPage> {
           title: Row(
             children: [
               Expanded(
-                child: Text(server.name ?? 'Unnamed Server'),
+                child: Text(server.name ?? localizations.appTitle),
               ),
               if (isDefaultUrl)
                 Container(
@@ -576,8 +592,8 @@ class _ServerSettingsPageState extends State<ServerSettingsPage> {
                     color: Colors.orange.withOpacity(0.2),
                     borderRadius: BorderRadius.circular(4),
                   ),
-                  child: const Text(
-                    'Default',
+                  child: Text(
+                    localizations.usingDefaultConnection,
                     style: TextStyle(
                       fontSize: 12,
                       color: Colors.orange,
@@ -610,52 +626,52 @@ class _ServerSettingsPageState extends State<ServerSettingsPage> {
           selected: isSelected,
           onTap: () {
             if (!isSelected) {
-              print('? ServerSettings: User selected server: ${server.url}');
+              print('ℹ️ ServerSettings: User selected server: ${server.url}');
               
               // Show loading indicator
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Connecting to server...'),
+                SnackBar(
+                  content: Text(localizations.attemptingReconnect),
                   duration: Duration(seconds: 1),
                 ),
               );
               
               // First, get the current GraphQLService and check its URL
               final graphQLService = Provider.of<GraphQLService>(context, listen: false);
-              print('? ServerSettings: Current GraphQLService URL: ${graphQLService.serverUrl}');
+              print('ℹ️ ServerSettings: Current GraphQLService URL: ${graphQLService.serverUrl}');
               
               // Select the server
               Provider.of<ServerDiscoveryProvider>(context, listen: false).selectServer(server.url).then((_) {
                 // Double-check both the provider and service have the correct URL
                 final updatedProvider = Provider.of<ServerDiscoveryProvider>(context, listen: false);
-                print('? ServerSettings: After selection - Provider URL: ${updatedProvider.selectedServerUrl}');
-                print('? ServerSettings: After selection - GraphQLService URL: ${graphQLService.serverUrl}');
+                print('ℹ️ ServerSettings: After selection - Provider URL: ${updatedProvider.selectedServerUrl}');
+                print('ℹ️ ServerSettings: After selection - GraphQLService URL: ${graphQLService.serverUrl}');
                 
                 // Verify server selection was successful in both places
                 if (updatedProvider.selectedServerUrl == server.url && 
                     graphQLService.serverUrl == server.url) {
-                  print('? ServerSettings: URL successfully set in both places');
+                  print('ℹ️ ServerSettings: URL successfully set in both places');
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text('Connected to ${server.name ?? server.url}'),
+                      content: Text(localizations.connectedTo + ' ' + (server.name ?? server.url)),
                       backgroundColor: Colors.green,
                     ),
                   );
                 } else {
-                  print('? ServerSettings: URL MISMATCH DETECTED!');
-                  print('? ServerSettings: Provider URL: ${updatedProvider.selectedServerUrl}');
-                  print('? ServerSettings: GraphQLService URL: ${graphQLService.serverUrl}');
+                  print('ℹ️ ServerSettings: URL MISMATCH DETECTED!');
+                  print('ℹ️ ServerSettings: Provider URL: ${updatedProvider.selectedServerUrl}');
+                  print('ℹ️ ServerSettings: GraphQLService URL: ${graphQLService.serverUrl}');
                   
                   // Try to force the GraphQLService to use the correct URL
                   graphQLService.setServerUrl(server.url).then((_) {
                     // Check if the fix worked
-                    print('? ServerSettings: After fix - GraphQLService URL: ${graphQLService.serverUrl}');
+                    print('ℹ️ ServerSettings: After fix - GraphQLService URL: ${graphQLService.serverUrl}');
                     
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
                         content: Text(graphQLService.serverUrl == server.url 
-                          ? 'Server connection fixed' 
-                          : 'Failed to connect to server'),
+                          ? localizations.usingConfiguredServer 
+                          : localizations.cannotConnectToServer),
                         backgroundColor: graphQLService.serverUrl == server.url 
                           ? Colors.green 
                           : Colors.red,

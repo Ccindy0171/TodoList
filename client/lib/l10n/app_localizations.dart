@@ -91,6 +91,11 @@ class AppLocalizations {
   String get tryDefaultConnection => _localizedValues[locale.languageCode]?['tryDefaultConnection'] ?? 'Try Default Connection';
   String get cannotConnectToServer => _localizedValues[locale.languageCode]?['cannotConnectToServer'] ?? 'Cannot connect to server';
   String get serverLimitationWarning => _localizedValues[locale.languageCode]?['serverLimitationWarning'] ?? 'Server limitation: Only supports a single category';
+  String get task => _localizedValues[locale.languageCode]?['task'] ?? 'task';
+  String get tasks => _localizedValues[locale.languageCode]?['tasks'] ?? 'tasks';
+  String get timeline => _localizedValues[locale.languageCode]?['timeline'] ?? 'Timeline';
+  String get noPrefix => _localizedValues[locale.languageCode]?['noPrefix'] ?? 'No';
+  String get inConnector => _localizedValues[locale.languageCode]?['inConnector'] ?? 'in';
 
   // Map of localized values for different languages
   static const Map<String, Map<String, String>> _localizedValues = {
@@ -172,6 +177,11 @@ class AppLocalizations {
       'tryDefaultConnection': 'Try Default Connection',
       'cannotConnectToServer': 'Cannot connect to server',
       'serverLimitationWarning': 'Server limitation: Only supports a single category',
+      'task': 'task',
+      'tasks': 'tasks',
+      'timeline': 'Timeline',
+      'noPrefix': 'No',
+      'inConnector': 'in',
     },
     'zh': {
       'appTitle': '待办事项',
@@ -212,7 +222,7 @@ class AppLocalizations {
       'noTags': '无标签',
       'enterTag': '输入标签',
       'noResults': '未找到结果',
-      'noTodos': '无待办事项',
+      'noTodos': '个任务',
       'noCategories': '没有可用的分类',
       'addNewTask': '添加新任务',
       'descriptionOptional': '描述（可选）',
@@ -230,7 +240,7 @@ class AppLocalizations {
       'refreshingData': '刷新数据中...',
       'error': '错误',
       'connectionError': '应用无法连接到配置的服务器。请检查您的网络连接和服务器状态，或配置其他服务器。',
-      'general': '常规',
+      'general': '无分类',
       'noCategoriesFound': '未找到分类',
       'refresh': '刷新',
       'deleteCategory': '删除分类',
@@ -251,6 +261,11 @@ class AppLocalizations {
       'tryDefaultConnection': '尝试默认连接',
       'cannotConnectToServer': '无法连接到服务器',
       'serverLimitationWarning': '服务器限制：只支持单个分类',
+      'task': '个任务',
+      'tasks': '个任务',
+      'timeline': '时间线',
+      'noPrefix': '零',
+      'inConnector': '在',
     },
   };
 }

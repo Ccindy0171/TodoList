@@ -574,7 +574,7 @@ func (r *mutationResolver) DeleteCategory(ctx context.Context, id string) (bool,
 	fmt.Printf("? Deleting category: %s (ID: %s)\n", categoryName, id)
 
 	// Find all todos that reference this category (either in categoryId or categoryIds)
-	todosQuery := fmt.Sprintf("SELECT * FROM todo WHERE categoryId = '%s' OR '%s' IN categoryIds", id, id)
+	todosQuery := fmt.Sprintf("SELECT * FROM todo WHERE categoryId = '%s' OR %s IN categoryIds", id, id)
 	todosResult, err := database.DB.Query(todosQuery, nil)
 	if err != nil {
 		return false, fmt.Errorf("failed to fetch todos for category: %v", err)
@@ -707,7 +707,7 @@ func (r *queryResolver) Todos(ctx context.Context, filter *model.TodoFilter) ([]
 				escapedCatID := helpers.EscapeString(catID)
 				// Match if the category is the primary categoryId OR is in the categoryIds array
 				categoryQueryConditions = append(categoryQueryConditions, 
-					fmt.Sprintf("(categoryId = '%s' OR '%s' IN categoryIds)", escapedCatID, escapedCatID))
+					fmt.Sprintf("(categoryId = '%s' OR %s IN categoryIds)", escapedCatID, escapedCatID))
 			}
 			// A todo matches if ANY of the filter category conditions are met
 			if len(categoryQueryConditions) > 0 {
@@ -721,7 +721,7 @@ func (r *queryResolver) Todos(ctx context.Context, filter *model.TodoFilter) ([]
 			} else {
 				escapedCatID := helpers.EscapeString(*filter.CategoryID)
 				// CORRECTED: Was categoryIds[WHERE $this = '%s'] in user's version
-				conditions = append(conditions, fmt.Sprintf("(categoryId = '%s' OR '%s' IN categoryIds)",
+				conditions = append(conditions, fmt.Sprintf("(categoryId = '%s' OR %s IN categoryIds)",
 					escapedCatID, escapedCatID))
 				fmt.Printf("? Adding categoryId filter: %s\n", *filter.CategoryID)
 			}

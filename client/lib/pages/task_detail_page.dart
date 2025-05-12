@@ -4,6 +4,7 @@ import '../providers/todo_provider.dart';
 import '../models/todo.dart';
 import '../widgets/add_task_dialog.dart';
 import 'task_edit_page.dart';
+import '../l10n/app_localizations.dart';
 
 class TaskDetailPage extends StatefulWidget {
   final String title;
@@ -29,6 +30,7 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
   List<Todo> _todos = [];
   bool _isLoading = false;
   String? _error;
+  bool _isFirstLoad = true;
   
   // List of temporarily completed todos (for optimistic UI updates)
   Set<String> _optimisticallyCompletedIds = {};
@@ -36,28 +38,41 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
   @override
   void initState() {
     super.initState();
-    print('? TaskDetailPage: initState() - Initializing for "${widget.title}"');
-    _loadData();
+    print('ℹ️ TaskDetailPage: initState() - Initializing for "${widget.title}"');
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Load data here, where context (and localizations) are available
+    // Use a flag to ensure it only runs once initially
+    if (_isFirstLoad) {
+      print('ℹ️ TaskDetailPage: didChangeDependencies() - First load for "${widget.title}"');
+      _loadData();
+      _isFirstLoad = false;
+    }
   }
 
   Future<void> _loadData() async {
     if (!mounted) return;
-    print('? TaskDetailPage: _loadData() - Loading data for "${widget.title}"');
+    print('ℹ️ TaskDetailPage: _loadData() - Loading data for "${widget.title}"');
     setState(() {
       _isLoading = true;
       _error = null;
     });
 
     try {
+      final localizations = AppLocalizations.of(context);
       List<Todo> todos;
+      
       if (widget.type == 'stat') {
-        if (widget.title == 'Today') {
+        if (widget.title == localizations.today) {
           todos = await context.read<TodoProvider>().getTodayTodos();
-        } else if (widget.title == 'Planned') {
+        } else if (widget.title == localizations.upcoming) {
           todos = await context.read<TodoProvider>().getUpcomingTodos();
-        } else if (widget.title == 'Completed') {
+        } else if (widget.title == localizations.completed) {
           todos = await context.read<TodoProvider>().getCompletedTodayTodos();
-        } else if (widget.title == 'All') {
+        } else if (widget.title == localizations.all) {
           todos = await context.read<TodoProvider>().getAllTodos();
         } else {
           todos = [];
@@ -71,7 +86,7 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
           todos = await context.read<TodoProvider>().getTodosByCategory(widget.title);
         }
       } else if (widget.type == 'category') {
-        if (widget.categoryId == 'General') {
+        if (widget.categoryId == localizations.general) {
           todos = await context.read<TodoProvider>().getGeneralTodos();
         } else if (widget.categoryId != null) {
           todos = await context.read<TodoProvider>().getTodosByCategory(widget.categoryId!);
@@ -100,6 +115,8 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
 
   @override
   Widget build(BuildContext context) {
+    final localizations = AppLocalizations.of(context);
+    
     return Scaffold(
       backgroundColor: Colors.grey[100],
       appBar: AppBar(
@@ -113,7 +130,7 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
         ),
         title: Text(widget.title),
         actions: [
-          if (widget.title == 'Today')
+          if (widget.title == localizations.today)
             IconButton(
               icon: const Icon(Icons.add),
               onPressed: () {
@@ -127,14 +144,14 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
                 });
               },
             )
-          else if (widget.title != 'Completed')
+          else if (widget.title != localizations.completed)
             IconButton(
               icon: const Icon(Icons.add),
               onPressed: () {
                 showDialog(
                   context: context,
                   builder: (context) => AddTaskDialog(
-                    categoryId: (widget.type == 'category' && widget.categoryId != 'General') ? widget.categoryId : null,
+                    categoryId: (widget.type == 'category' && widget.categoryId != localizations.general) ? widget.categoryId : null,
                   ),
                 ).then((result) {
                   if (result == true) {
@@ -167,7 +184,7 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
                       const SizedBox(height: 16),
                       ElevatedButton(
                         onPressed: _loadData,
-                        child: const Text('Try Again'),
+                        child: Text(localizations.tryAgain),
                       ),
                     ],
                   ),
@@ -179,7 +196,7 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
                         children: [
                           Icon(Icons.info_outline, size: 48, color: widget.color),
                           const SizedBox(height: 16),
-                          Text('No tasks in ${widget.title}'),
+                          Text('${localizations.noPrefix} ${localizations.tasks} ${localizations.inConnector} ${widget.title}'),
                         ],
                       ),
                     )
@@ -191,7 +208,7 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
                         return _buildTaskItem(context, todo);
                       },
                     ),
-      floatingActionButton: widget.title != 'Completed' ? FloatingActionButton(
+      floatingActionButton: widget.title != localizations.completed ? FloatingActionButton(
         onPressed: () {
           showDialog(
             context: context,
@@ -210,14 +227,16 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
   }
 
   Widget _buildTaskItem(BuildContext context, Todo todo) {
+    final localizations = AppLocalizations.of(context);
+    
     // Check if this task is being optimistically shown as completed
     final isOptimisticallyCompleted = _optimisticallyCompletedIds.contains(todo.id);
     final showAsCompleted = todo.completed || isOptimisticallyCompleted;
     
     // Check if we're in a view that should only show time (not full date)
     final bool showTimeOnly = widget.type == 'chronological' || 
-                             widget.title == 'Chronological View' ||
-                             widget.title == 'Today';
+                             widget.title == localizations.timeline ||
+                             widget.title == localizations.today;
     
     // Format date in a human-readable way with YYYY-MM-DD HH:MM format
     String formatDateTime(DateTime dateTime) {

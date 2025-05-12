@@ -129,9 +129,9 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
       models.Category? newCategory; // Define newCategory outside the try-catch
       try {
         newCategory = await categoryProvider.createCategory(
-          name: _newCategoryController.text,
-          color: _selectedColor,
-        );
+        name: _newCategoryController.text,
+        color: _selectedColor,
+      );
       } catch (e) {
         print('? AddTaskDialog: Error creating category: $e');
         if (mounted) {
@@ -143,8 +143,8 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
       
       // Update state regardless of success/failure, but only add ID if successful
       setState(() {
-        if (newCategory != null) {
-          print('? AddTaskDialog: Created new category: ${newCategory.id} - ${newCategory.name}');
+      if (newCategory != null) {
+        print('? AddTaskDialog: Created new category: ${newCategory.id} - ${newCategory.name}');
           // Ensure the list is modifiable before adding
           final updatedIds = List<String>.from(_selectedCategoryIds);
           if (!updatedIds.contains(newCategory.id)) { // Avoid duplicates
@@ -152,9 +152,9 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
           }
           _selectedCategoryIds = updatedIds; // Update the state variable
         }
-        _isCreatingNewCategory = false;
-        _newCategoryController.clear();
-        _isLoading = false;
+          _isCreatingNewCategory = false;
+          _newCategoryController.clear();
+          _isLoading = false;
         print('? AddTaskDialog: Selected categories after creation: $_selectedCategoryIds');
       });
     }
@@ -162,12 +162,12 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
 
   void _addTag() {
     if (_tagController.text.trim().isNotEmpty) {
-      setState(() {
+        setState(() {
         _tags.add(_tagController.text.trim());
         _tagController.clear();
-      });
+        });
+      }
     }
-  }
 
   void _removeTag(String tag) {
     setState(() {

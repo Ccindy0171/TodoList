@@ -6,12 +6,15 @@ import '../providers/todo_provider.dart';
 import '../pages/date_range_filter_page.dart';
 import '../pages/chronological_tasks_page.dart';
 import '../models/todo.dart';
+import '../l10n/app_localizations.dart';
 
 class StatsGrid extends StatelessWidget {
   const StatsGrid({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final localizations = AppLocalizations.of(context);
+    
     return Consumer<TodoProvider>(
       builder: (context, todoProvider, child) {
         final isLoading = todoProvider.isLoading;
@@ -34,7 +37,7 @@ class StatsGrid extends StatelessWidget {
                     ),
                     SizedBox(height: 16),
                     Text(
-                      error ?? 'Cannot connect to server',
+                      error ?? localizations.cannotConnectToServer,
                       textAlign: TextAlign.center,
                       style: TextStyle(color: Colors.red[700]),
                     ),
@@ -42,7 +45,7 @@ class StatsGrid extends StatelessWidget {
                     ElevatedButton.icon(
                       onPressed: () => todoProvider.retryLoadTodos(),
                       icon: Icon(Icons.refresh),
-                      label: Text('Retry Connection'),
+                      label: Text(localizations.tryAgain),
                     ),
                     if (todoProvider.getCachedAllTodos != null && 
                         todoProvider.getCachedAllTodos!.isNotEmpty) ...[
@@ -62,7 +65,7 @@ class StatsGrid extends StatelessWidget {
               // Still show grid with cached data if available
               if (todoProvider.getCachedAllTodos != null && 
                   todoProvider.getCachedAllTodos!.isNotEmpty) ...[
-                _buildStatsGridWithCachedData(todoProvider),
+                _buildStatsGridWithCachedData(todoProvider, localizations),
               ],
             ],
           );
@@ -81,7 +84,7 @@ class StatsGrid extends StatelessWidget {
                 Expanded(
                   child: _buildStatCard(
                     context,
-                    'Today',
+                    localizations.today,
                     Icons.today,
                     Colors.blue,
                     count: todayCount,
@@ -92,7 +95,7 @@ class StatsGrid extends StatelessWidget {
                 Expanded(
                   child: _buildStatCard(
                     context,
-                    'Planned',
+                    localizations.upcoming,
                     Icons.calendar_month,
                     Colors.orange,
                     count: plannedCount,
@@ -107,7 +110,7 @@ class StatsGrid extends StatelessWidget {
                 Expanded(
                   child: _buildStatCard(
                     context,
-                    'All',
+                    localizations.all,
                     Icons.list_alt,
                     Colors.green,
                     count: allCount,
@@ -118,7 +121,7 @@ class StatsGrid extends StatelessWidget {
                 Expanded(
                   child: _buildStatCard(
                     context,
-                    'Completed',
+                    localizations.completed,
                     Icons.check_circle,
                     Colors.purple,
                     count: completedCount,
@@ -141,7 +144,7 @@ class StatsGrid extends StatelessWidget {
                 Expanded(
                   child: _buildStatCard(
                     context,
-                    'Date Range',
+                    localizations.dueDate,
                     Icons.date_range,
                     Colors.deepOrange,
                     hasCounter: false,
@@ -159,7 +162,7 @@ class StatsGrid extends StatelessWidget {
                 Expanded(
                   child: _buildStatCard(
                     context,
-                    'Timeline',
+                    localizations.timeline,
                     Icons.timeline,
                     Colors.teal,
                     hasCounter: false,
@@ -192,6 +195,8 @@ class StatsGrid extends StatelessWidget {
     VoidCallback? onTap,
     bool isCached = false,
   }) {
+    final localizations = AppLocalizations.of(context);
+    
     return GestureDetector(
       onTap: onTap ?? () {
         Navigator.push(
@@ -247,7 +252,9 @@ class StatsGrid extends StatelessWidget {
                 )
               else
                 Text(
-                  count != null ? '$count ${count == 1 ? 'task' : 'tasks'}' : '0 tasks',
+                  count != null 
+                  ? '$count ${count == 1 ? localizations.task : localizations.tasks}' 
+                  : '0 ${localizations.tasks}',
                   style: TextStyle(
                     fontSize: 14,
                     color: Colors.grey[600],
@@ -261,7 +268,7 @@ class StatsGrid extends StatelessWidget {
   }
 
   // Build stats grid with cached data (for offline mode)
-  Widget _buildStatsGridWithCachedData(TodoProvider todoProvider) {
+  Widget _buildStatsGridWithCachedData(TodoProvider todoProvider, AppLocalizations localizations) {
     // Get counts from cached data
     final todayCount = todoProvider.getCachedTodayTodos?.length ?? 0;
     final plannedCount = todoProvider.getCachedUpcomingTodos?.length ?? 0;
@@ -274,19 +281,21 @@ class StatsGrid extends StatelessWidget {
           children: [
             Expanded(
               child: _buildStatCardCached(
-                'Today',
+                localizations.today,
                 Icons.today,
                 Colors.blue,
                 count: todayCount,
+                localizations: localizations,
               ),
             ),
             const SizedBox(width: 16),
             Expanded(
               child: _buildStatCardCached(
-                'Planned',
+                localizations.upcoming,
                 Icons.calendar_month,
                 Colors.orange,
                 count: plannedCount,
+                localizations: localizations,
               ),
             ),
           ],
@@ -296,19 +305,21 @@ class StatsGrid extends StatelessWidget {
           children: [
             Expanded(
               child: _buildStatCardCached(
-                'All',
+                localizations.all,
                 Icons.list_alt,
                 Colors.green,
                 count: allCount,
+                localizations: localizations,
               ),
             ),
             const SizedBox(width: 16),
             Expanded(
               child: _buildStatCardCached(
-                'Completed',
+                localizations.completed,
                 Icons.check_circle,
                 Colors.purple,
                 count: completedCount,
+                localizations: localizations,
               ),
             ),
           ],
@@ -324,6 +335,7 @@ class StatsGrid extends StatelessWidget {
     Color color, {
     int? count,
     bool hasCounter = true,
+    required AppLocalizations localizations,
   }) {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -370,7 +382,9 @@ class StatsGrid extends StatelessWidget {
           if (hasCounter) ...[
             const SizedBox(height: 8),
             Text(
-              count != null ? '$count ${count == 1 ? 'task' : 'tasks'}' : '0 tasks',
+              count != null 
+              ? '$count ${count == 1 ? localizations.task : localizations.tasks}' 
+              : '0 ${localizations.tasks}',
               style: TextStyle(
                 fontSize: 14,
                 color: Colors.grey[600],
